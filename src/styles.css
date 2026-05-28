@@ -1,0 +1,376 @@
+* {
+  box-sizing: border-box;
+}
+
+:root {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #070914;
+  color: #f7fbff;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.22), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.22), transparent 30rem),
+    #070914;
+}
+
+button {
+  font: inherit;
+}
+
+.app-shell {
+  width: min(1220px, calc(100vw - 32px));
+  margin: 0 auto;
+  padding: 32px 0 48px;
+}
+
+.app-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 26px;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.05;
+}
+
+h1 {
+  font-size: clamp(2.3rem, 5vw, 4.6rem);
+  letter-spacing: -0.06em;
+}
+
+h2 {
+  font-size: 1.45rem;
+}
+
+.week-strip {
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(16px);
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.day-pill {
+  border: 0;
+  color: #cbd5e1;
+  background: transparent;
+  border-radius: 999px;
+  padding: 10px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.day-pill.active {
+  background: #22d3ee;
+  color: #03131a;
+  font-weight: 900;
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.48);
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 22px;
+  align-items: start;
+}
+
+.body-panel,
+.daily-panel {
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 28px;
+  background: rgba(15, 23, 42, 0.76);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(20px);
+}
+
+.body-panel {
+  position: sticky;
+  top: 20px;
+  padding: 24px;
+}
+
+.daily-panel {
+  padding: 24px;
+}
+
+.panel-heading {
+  margin-bottom: 20px;
+}
+
+.body-svg {
+  display: block;
+  width: 100%;
+  max-width: 230px;
+  margin: 8px auto 22px;
+  overflow: visible;
+}
+
+.symbolic-body {
+  max-width: 245px;
+}
+
+.body-shadow ellipse {
+  fill: rgba(0, 0, 0, 0.34);
+}
+
+.symbol-zone {
+  fill: url("#body-dim");
+  stroke: rgba(226, 232, 240, 0.2);
+  stroke-width: 3.2;
+  stroke-linejoin: round;
+  transition:
+    fill 220ms ease,
+    stroke 220ms ease,
+    filter 220ms ease,
+    opacity 220ms ease;
+}
+
+.symbol-zone.bright {
+  fill: var(--zone-color);
+  stroke: rgba(255, 255, 255, 0.72);
+}
+
+.zone {
+  fill: rgba(30, 41, 59, 0.86);
+  stroke: rgba(148, 163, 184, 0.42);
+  stroke-width: 3;
+  transition: fill 260ms ease, stroke 260ms ease, filter 260ms ease;
+}
+
+.zone.bright {
+  fill: #22d3ee;
+  stroke: #e0faff;
+  filter: url("#glow");
+}
+
+.zone-list {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+
+.zone-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #94a3b8;
+  font-size: 0.86rem;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.zone-chip span {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--zone-color, #334155);
+  opacity: 0.45;
+}
+
+.zone-chip.lit {
+  color: #ecfeff;
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.zone-chip.lit span {
+  opacity: 1;
+  box-shadow: 0 0 14px var(--zone-color, #22d3ee);
+}
+
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.exercise-card {
+  display: flex;
+  min-height: 238px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  border-radius: 24px;
+  padding: 18px;
+  background: linear-gradient(145deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.92));
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.exercise-card.done {
+  border-color: rgba(34, 211, 238, 0.58);
+  box-shadow: 0 0 28px rgba(34, 211, 238, 0.16);
+}
+
+.card-topline,
+.card-actions,
+.tag-row,
+.exercise-main {
+  display: flex;
+  align-items: center;
+}
+
+.card-topline {
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-badge {
+  border-radius: 999px;
+  padding: 7px 10px;
+  background: rgba(168, 85, 247, 0.16);
+  color: #e9d5ff;
+  font-weight: 800;
+  font-size: 0.78rem;
+}
+
+.domain-label {
+  color: #94a3b8;
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+.exercise-main {
+  gap: 14px;
+}
+
+.exercise-illustration {
+  display: grid;
+  place-items: center;
+  flex: 0 0 66px;
+  width: 66px;
+  height: 66px;
+  border-radius: 22px;
+  background: rgba(34, 211, 238, 0.1);
+  border: 1px solid rgba(34, 211, 238, 0.24);
+}
+
+.exercise-illustration svg {
+  width: 46px;
+  height: 46px;
+  fill: none;
+  stroke: #67e8f9;
+  stroke-width: 5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.exercise-illustration circle {
+  fill: #67e8f9;
+  stroke: none;
+}
+
+.exercise-card h3 {
+  font-size: 1.28rem;
+  margin-bottom: 7px;
+}
+
+.dose {
+  margin: 0;
+  color: #cbd5e1;
+}
+
+.tag-row {
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tag-row span {
+  padding: 6px 9px;
+  border-radius: 999px;
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.12);
+  font-size: 0.78rem;
+}
+
+.card-actions {
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.secondary-button,
+.complete-button {
+  border: 0;
+  border-radius: 14px;
+  padding: 11px 13px;
+  cursor: pointer;
+  font-weight: 900;
+}
+
+.secondary-button {
+  color: #e2e8f0;
+  background: rgba(148, 163, 184, 0.13);
+}
+
+.complete-button {
+  color: #041013;
+  background: #22d3ee;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    width: min(100vw - 20px, 720px);
+    padding: 18px 0 36px;
+  }
+
+  .app-header {
+    align-items: start;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  h1 {
+    font-size: clamp(2.1rem, 12vw, 3.2rem);
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .body-panel {
+    position: static;
+    padding: 18px;
+  }
+
+  .daily-panel {
+    padding: 18px;
+  }
+
+  .body-svg {
+    max-width: 190px;
+    margin-bottom: 16px;
+  }
+
+  .cards-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .exercise-card {
+    min-height: 210px;
+  }
+}
