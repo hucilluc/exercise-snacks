@@ -1,169 +1,142 @@
-import { zoneLabels } from "../data/exercises.js";
-
-const zoneColors = {
-  head: "#9b2cff",
-  arms: "#ff5a24",
-  upperTorso: "#16e8f0",
-  midTorso: "#ffe12b",
-  lowerTorso: "#0878ff",
-  legs: "#19ff6a",
-};
-
-export default function BodyBrightFigure({ completedZones }) {
-  const isBright = (zone) => completedZones.includes(zone);
-
-  const zoneClass = (zone) =>
-    isBright(zone) ? "symbol-zone bright" : "symbol-zone";
-
-  const glow = (zone) => (isBright(zone) ? `url(#glow-${zone})` : "none");
-
+export default function BodyBrightFigure() {
   return (
-    <section className="body-panel">
-      <div className="panel-heading">
-        <p className="eyebrow">Body Bright</p>
-        <h2>Light up the day</h2>
-      </div>
-
-      <svg
-        className="body-svg symbolic-body"
-        viewBox="0 0 220 420"
-        role="img"
-        aria-label="Body Bright progress figure"
-      >
+    <div className="body-bright-figure">
+      <svg viewBox="0 0 400 700" role="img" aria-label="Body Bright figure">
         <defs>
-          {Object.entries(zoneColors).map(([zone, color]) => (
-            <filter key={zone} id={`glow-${zone}`}>
-              <feGaussianBlur stdDeviation="5" result="blur" />
-              <feFlood floodColor={color} floodOpacity="0.8" result="color" />
-              <feComposite in="color" in2="blur" operator="in" result="glow" />
+          <radialGradient id="bb-bg-glow" cx="50%" cy="95%" r="40%">
+            <stop offset="0%" stopColor="#0c2511" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#090d16" stopOpacity="0" />
+          </radialGradient>
+
+          {["purple", "cyan", "yellow", "blue", "orange", "green"].map((name) => (
+            <filter
+              key={name}
+              id={`bb-glow-${name}`}
+              x="-50%"
+              y="-50%"
+              width="200%"
+              height="200%"
+            >
+              <feGaussianBlur stdDeviation="5" result="blur1" />
+              <feGaussianBlur stdDeviation="12" result="blur2" />
               <feMerge>
-                <feMergeNode in="glow" />
+                <feMergeNode in="blur2" />
+                <feMergeNode in="blur1" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
           ))}
-
-          <linearGradient id="body-dim" x1="0" x2="1" y1="0" y2="1">
-            <stop offset="0%" stopColor="#26364f" />
-            <stop offset="100%" stopColor="#101827" />
-          </linearGradient>
         </defs>
 
-        <g className="body-shadow">
-          <ellipse cx="110" cy="390" rx="64" ry="12" />
+        <ellipse
+          cx="200"
+          cy="660"
+          rx="100"
+          ry="25"
+          fill="url(#bb-bg-glow)"
+        />
+
+        <g strokeLinecap="round" strokeLinejoin="round">
+          <circle
+            cx="200"
+            cy="110"
+            r="45"
+            fill="#8a1dff"
+            fillOpacity="0.9"
+            stroke="#df8aff"
+            strokeWidth="5"
+            filter="url(#bb-glow-purple)"
+          />
+
+          <path
+            d="M 140 185
+               Q 200 170 260 185
+               L 250 270
+               Q 200 275 150 270 Z"
+            fill="#18dff0"
+            fillOpacity="0.9"
+            stroke="#7bf0ff"
+            strokeWidth="5"
+            filter="url(#bb-glow-cyan)"
+          />
+
+          <path
+            d="M 151 280
+               Q 200 285 249 280
+               L 247 360
+               Q 200 365 153 360 Z"
+            fill="#ffe100"
+            fillOpacity="0.9"
+            stroke="#ffee6b"
+            strokeWidth="5"
+            filter="url(#bb-glow-yellow)"
+          />
+
+          <path
+            d="M 154 370
+               Q 200 375 246 370
+               L 245 420
+               Q 200 450 155 420 Z"
+            fill="#005dff"
+            fillOpacity="0.9"
+            stroke="#387cff"
+            strokeWidth="5"
+            filter="url(#bb-glow-blue)"
+          />
+
+          <path
+            d="M 115 205
+               Q 135 320 115 425
+               A 15 15 0 0 1 85 420
+               Q 100 310 93 210
+               A 15 15 0 0 1 115 205 Z"
+            fill="#ff5a1f"
+            fillOpacity="0.9"
+            stroke="#ff8742"
+            strokeWidth="5"
+            filter="url(#bb-glow-orange)"
+          />
+
+          <path
+            d="M 285 205
+               Q 265 320 285 425
+               A 15 15 0 0 0 315 420
+               Q 300 310 307 210
+               A 15 15 0 0 0 285 205 Z"
+            fill="#ff5a1f"
+            fillOpacity="0.9"
+            stroke="#ff8742"
+            strokeWidth="5"
+            filter="url(#bb-glow-orange)"
+          />
+
+          <path
+            d="M 143 435
+               L 178 435
+               Q 175 550 185 660
+               A 22 22 0 0 1 138 660
+               Q 150 540 143 435 Z"
+            fill="#1eff3c"
+            fillOpacity="0.9"
+            stroke="#6eff89"
+            strokeWidth="5"
+            filter="url(#bb-glow-green)"
+          />
+
+          <path
+            d="M 222 435
+               L 257 435
+               Q 250 540 262 660
+               A 22 22 0 0 1 215 660
+               Q 225 550 222 435 Z"
+            fill="#1eff3c"
+            fillOpacity="0.9"
+            stroke="#6eff89"
+            strokeWidth="5"
+            filter="url(#bb-glow-green)"
+          />
         </g>
-
-        <circle
-          className={zoneClass("head")}
-          style={{
-            "--zone-color": zoneColors.head,
-            filter: glow("head"),
-          }}
-          cx="110"
-          cy="48"
-          r="34"
-        />
-
-        <rect
-          className={zoneClass("upperTorso")}
-          style={{
-            "--zone-color": zoneColors.upperTorso,
-            filter: glow("upperTorso"),
-          }}
-          x="66"
-          y="104"
-          width="88"
-          height="74"
-          rx="22"
-        />
-
-        <rect
-          className={zoneClass("midTorso")}
-          style={{
-            "--zone-color": zoneColors.midTorso,
-            filter: glow("midTorso"),
-          }}
-          x="64"
-          y="181"
-          width="92"
-          height="76"
-          rx="18"
-        />
-
-        <rect
-          className={zoneClass("lowerTorso")}
-          style={{
-            "--zone-color": zoneColors.lowerTorso,
-            filter: glow("lowerTorso"),
-          }}
-          x="68"
-          y="260"
-          width="84"
-          height="42"
-          rx="18"
-        />
-
-        <rect
-          className={zoneClass("arms")}
-          style={{
-            "--zone-color": zoneColors.arms,
-            filter: glow("arms"),
-          }}
-          x="27"
-          y="119"
-          width="35"
-          height="158"
-          rx="18"
-        />
-
-        <rect
-          className={zoneClass("arms")}
-          style={{
-            "--zone-color": zoneColors.arms,
-            filter: glow("arms"),
-          }}
-          x="158"
-          y="119"
-          width="35"
-          height="158"
-          rx="18"
-        />
-
-        <rect
-          className={zoneClass("legs")}
-          style={{
-            "--zone-color": zoneColors.legs,
-            filter: glow("legs"),
-          }}
-          x="68"
-          y="305"
-          width="37"
-          height="82"
-          rx="18"
-        />
-
-        <rect
-          className={zoneClass("legs")}
-          style={{
-            "--zone-color": zoneColors.legs,
-            filter: glow("legs"),
-          }}
-          x="115"
-          y="305"
-          width="37"
-          height="82"
-          rx="18"
-        />
       </svg>
-
-      <div className="zone-list">
-        {Object.entries(zoneLabels).map(([zone, label]) => (
-          <div key={zone} className={isBright(zone) ? "zone-chip lit" : "zone-chip"}>
-            <span style={{ "--zone-color": zoneColors[zone] }} />
-            {label}
-          </div>
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }
