@@ -1,32 +1,73 @@
 import { useMemo, useState } from "react";
-import Header from "./components/Header.jsx";
-import BodyBrightFigure from "./components/BodyBrightFigure.jsx";
-import ExerciseCard from "./components/ExerciseCard.jsx";
-import { dailyExercises } from "./data/exercises.js";
+import Header from "./components/Header";
+import BodyBrightFigure from "./components/BodyBrightFigure";
+import ExerciseCard from "./components/ExerciseCard";
+import { bodyBright, dailyExercises } from "./data/exercises";
+import "./styles.css";
 
-export default function App() {
-  const [completed, setCompleted] = useState([]);
+const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-  const completedZones = useMemo(() => {
-    return dailyExercises
-      .filter((exercise) => completed.includes(exercise.id))
-      .map((exercise) => exercise.zone);
-  }, [completed]);
+const defaultStates = dailyExercises.reduce((acc, exercise) => {
+  acc[exercise.id] = "not_started";
+  return acc;
+}, {});
 
-  function toggleDone(id) {
-    setCompleted((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id]
-    );
+function App() {
+  const todayIndex = 3;
+  const [selectedDay, setSelectedDay] = useState(todayIndex);
+  const [cardStates, setCardStates] = useState(defaultStates);
+
+  const zoneScores = useMemo(() => {
+    const scores = {
+      head: 0,
+      upperTorso: 0,
+      midTorso: 0,
+      lowerTorso: 0,
+      arms: 0,
+      legs: 0,
+    };
+
+    dailyExercises.forEach((exercise) => {
+      const state = cardStates[exercise.id];
+      const score = bodyBright.stateScores[state] ?? 0;
+      const zone = bodyBright.domainToZone[exercise.domain];
+
+      if (zone) {
+        scores[zone] += score;
+      }
+    });
+
+    return scores;
+  }, [cardStates]);
+
+  function handleSetState(exerciseId, nextState) {
+    setCardStates((currentStates) => ({
+      ...currentStates,
+      [exerciseId]: nextState,
+    }));
   }
 
   return (
     <main className="app-shell">
       <Header />
 
+      <div className="week-strip" aria-label="Select day">
+        {days.map((day, index) => (
+          <button
+            className={`day-pill ${selectedDay === index ? "active" : ""}`}
+            key={day}
+            type="button"
+            onClick={() => setSelectedDay(index)}
+          >
+            {day}
+          </button>
+        ))}
+      </div>
+
       <section className="layout">
-        <BodyBrightFigure completedZones={completedZones} />
+        <aside className="body-panel" aria-label="Body Bright weekly progress">
+          <BodyBrightFigure zoneScores={zoneScores} weeklyTarget={bodyBright.weeklyTarget} />
+        </aside>
 
         <section className="daily-panel">
           <div className="panel-heading">
@@ -37,10 +78,10 @@ export default function App() {
           <div className="cards-grid">
             {dailyExercises.map((exercise) => (
               <ExerciseCard
-                key={exercise.id}
                 exercise={exercise}
-                isDone={completed.includes(exercise.id)}
-                onDone={toggleDone}
+                key={exercise.id}
+                state={cardStates[exercise.id]}
+                onSetState={handleSetState}
               />
             ))}
           </div>
@@ -49,3 +90,5 @@ export default function App() {
     </main>
   );
 }
+
+export default App;
