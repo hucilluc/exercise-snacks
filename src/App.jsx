@@ -3,13 +3,17 @@ import Header from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
 import ExerciseDetailModal from "./components/ExerciseDetailModal";
-import { bodyBright, dailyExercises } from "./data/exercises";
+import {
+  bodyBright,
+  defaultDailyExerciseIds,
+  enrichedExerciseLibrary,
+} from "./data/exercises";
 import "./styles.css";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STORAGE_KEY = "exerciseSnackProfile_v1";
 
-const defaultStates = dailyExercises.reduce((acc, exercise) => {
+const defaultStates = enrichedExerciseLibrary.reduce((acc, exercise) => {
   acc[exercise.id] = "not_started";
   return acc;
 }, {});
@@ -28,15 +32,46 @@ function loadSavedProfile() {
   }
 }
 
+function getSwapOptions(exerciseId, currentDailyIds) {
+  const currentExercise = enrichedExerciseLibrary.find((exercise) => exercise.id === exerciseId);
+
+  if (!currentExercise) {
+    return [];
+  }
+
+  const currentSlotIndex = currentDailyIds.indexOf(exerciseId);
+  const originalExerciseId = defaultDailyExerciseIds[currentSlotIndex];
+
+  if (!originalExerciseId) {
+    return [];
+  }
+
+  return enrichedExerciseLibrary.filter(
+    (exercise) =>
+      exercise.status === "active" &&
+      exercise.domain === currentExercise.domain &&
+      !currentDailyIds.some((id, index) => index !== currentSlotIndex && id === exercise.id)
+  );
+}
+
 function App() {
   const todayIndex = 3;
   const savedProfile = loadSavedProfile();
 
   const [selectedDay, setSelectedDay] = useState(savedProfile?.selectedDay ?? todayIndex);
   const [cardStates, setCardStates] = useState(savedProfile?.cardStates ?? defaultStates);
+  const [dailyExerciseIds, setDailyExerciseIds] = useState(
+    savedProfile?.dailyExerciseIds ?? defaultDailyExerciseIds
+  );
   const [selectedExerciseId, setSelectedExerciseId] = useState(null);
 
-  const selectedExercise = dailyExercises.find((exercise) => exercise.id === selectedExerciseId);
+  const dailyExercises = dailyExerciseIds
+    .map((id) => enrichedExerciseLibrary.find((exercise) => exercise.id === id))
+    .filter(Boolean);
+
+  const selectedExercise = enrichedExerciseLibrary.find(
+    (exercise) => exercise.id === selectedExerciseId
+  );
   const selectedExerciseState = selectedExercise ? cardStates[selectedExercise.id] : "not_started";
 
   useEffect(() => {
@@ -44,11 +79,12 @@ function App() {
       schemaVersion: 1,
       selectedDay,
       cardStates,
+      dailyExerciseIds,
       lastUpdated: new Date().toISOString(),
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-  }, [selectedDay, cardStates]);
+  }, [selectedDay, cardStates, dailyExerciseIds]);
 
   const zoneScores = useMemo(() => {
     const scores = {
@@ -71,7 +107,7 @@ function App() {
     });
 
     return scores;
-  }, [cardStates]);
+  }, [cardStates, dailyExercises]);
 
   function handleSetState(exerciseId, nextState) {
     setCardStates((currentStates) => ({
@@ -86,6 +122,40 @@ function App() {
 
   function handleCloseExercise() {
     setSelectedExerciseId(null);
+  }
+
+  function handleSwapExercise(exerciseId) {
+    setDailyExerciseIds((currentIds) => {
+      const currentSlotIndex = currentIds.indexOf(exerciseId);
+
+      if (currentSlotIndex === -1) {
+        return currentIds;
+      }
+
+      const swapOptions = getSwapOptions(exerciseId, currentIds);
+
+      if (swapOptions.length <= 1) {
+        return currentIds;
+      }
+
+      const currentOptionIndex = swapOptions.findIndex((exercise) => exercise.id === exerciseId);
+      const nextOptionIndex = (currentOptionIndex + 1) % swapOptions.length;
+      const replacement = swapOptions[nextOptionIndex];
+
+      setCardStates((currentStates) => ({
+        ...currentStates,
+        [exerciseId]: "not_started",
+        [replacement.id]: "not_started",
+      }));
+
+      if (selectedExerciseId === exerciseId) {
+        setSelectedExerciseId(replacement.id);
+      }
+
+      return currentIds.map((id, index) =>
+        index === currentSlotIndex ? replacement.id : id
+      );
+    });
   }
 
   return (
@@ -124,6 +194,7 @@ function App() {
                 state={cardStates[exercise.id]}
                 onSetState={handleSetState}
                 onOpen={handleOpenExercise}
+                onSwap={handleSwapExercise}
               />
             ))}
           </div>

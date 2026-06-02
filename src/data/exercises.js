@@ -188,12 +188,149 @@ export const exerciseLibrary = [
     tags: ["rehab", "physio", "controlled"],
     dose: "Current physio dose",
   },
+
+  // Swap alternatives
+  {
+    id: "gardening",
+    name: "Gardening",
+    title: "Gardening",
+    domain: "cardio_circulation",
+    status: "active",
+    reviewMode: "progression",
+    illustrationId: "gardening",
+    illustrationMode: "category",
+    contexts: ["outdoors"],
+    context: "Outdoors",
+    functionalTags: ["whole_body", "circulation", "cardio"],
+    careTags: ["low_impact"],
+    intensity: "moderate",
+    instructions:
+      "Use gardening as meaningful outdoor movement. Keep the effort steady rather than heroic.",
+    variantLevels: [{ level: 1, label: "General gardening" }],
+    doseLevels: [{ level: 1, displayText: "10–20 minutes" }],
+    currentVariantLevel: 1,
+    currentDoseLevel: 1,
+    tags: ["outdoors", "whole body", "useful"],
+    dose: "10–20 minutes",
+  },
+  {
+    id: "seated_ball_march",
+    name: "Seated ball march",
+    title: "Seated ball march",
+    domain: "core_posture",
+    status: "active",
+    reviewMode: "calibration",
+    illustrationId: "ball_march",
+    illustrationMode: "specific",
+    contexts: ["daytime", "scheduled"],
+    context: "Daytime",
+    functionalTags: ["core", "posture", "balance"],
+    careTags: ["back_care", "low_impact"],
+    intensity: "gentle",
+    instructions:
+      "Sit tall on the exercise ball and slowly lift one foot, then the other, as if marching gently.",
+    variantLevels: [{ level: 1, label: "Supported ball march" }],
+    doseLevels: [{ level: 1, displayText: "10 slow marches" }],
+    currentVariantLevel: 1,
+    currentDoseLevel: 1,
+    tags: ["core", "ball", "gentle"],
+    dose: "10 slow marches",
+  },
+  {
+    id: "hamstring_stretch",
+    name: "Hamstring stretch",
+    title: "Hamstring stretch",
+    domain: "mobility_recovery",
+    status: "active",
+    reviewMode: "calibration",
+    illustrationId: "hamstring_stretch",
+    illustrationMode: "specific",
+    contexts: ["getting_up", "daytime"],
+    context: "Getting up",
+    functionalTags: ["legs", "hips", "mobility"],
+    careTags: ["back_care", "low_impact"],
+    intensity: "gentle",
+    instructions:
+      "Use a gentle supported hamstring stretch. Stay comfortable and avoid pulling hard.",
+    variantLevels: [{ level: 1, label: "Gentle supported stretch" }],
+    doseLevels: [{ level: 1, displayText: "20 seconds each side" }],
+    currentVariantLevel: 1,
+    currentDoseLevel: 1,
+    tags: ["hamstrings", "hips", "gentle"],
+    dose: "20 seconds each side",
+  },
+  {
+    id: "sit_to_stand",
+    name: "Sit-to-stand",
+    title: "Sit-to-stand",
+    domain: "strength",
+    status: "active",
+    reviewMode: "calibration",
+    illustrationId: "sit_to_stand",
+    illustrationMode: "specific",
+    contexts: ["daytime", "sitting_break"],
+    context: "Daytime",
+    functionalTags: ["legs", "hips", "glutes", "strength"],
+    careTags: ["low_impact"],
+    intensity: "moderate",
+    instructions:
+      "Stand up from a chair and sit back down with control. Use hands if needed.",
+    variantLevels: [
+      { level: 1, label: "Hands allowed" },
+      { level: 2, label: "Hands-free" },
+    ],
+    doseLevels: [{ level: 1, displayText: "5 controlled reps" }],
+    currentVariantLevel: 1,
+    currentDoseLevel: 1,
+    tags: ["legs", "functional", "strength"],
+    dose: "5 controlled reps",
+  },
+  {
+    id: "qigong",
+    name: "Qigong",
+    title: "Qigong",
+    domain: "mobility_recovery",
+    status: "active",
+    reviewMode: "progression",
+    illustrationId: "qigong_general",
+    illustrationMode: "category",
+    contexts: ["scheduled"],
+    context: "Scheduled",
+    functionalTags: ["whole_body", "mobility", "balance"],
+    careTags: ["breathlessness_friendly", "low_impact"],
+    intensity: "gentle",
+    instructions:
+      "Use this for a Qigong class or self-practice session. Let it count as gentle whole-body movement.",
+    variantLevels: [{ level: 1, label: "Class or self-practice" }],
+    doseLevels: [{ level: 1, displayText: "Class or short practice" }],
+    currentVariantLevel: 1,
+    currentDoseLevel: 1,
+    tags: ["qigong", "whole body", "calm"],
+    dose: "Class or short practice",
+  },
 ];
 
-export const dailyExercises = exerciseLibrary.map((exercise) => ({
-  ...exercise,
-  domainLabel: domainLabels[exercise.domain],
-  bodyBrightZone: bodyBright.domainToZone[exercise.domain],
-  zone: bodyBright.domainToZone[exercise.domain],
-  imageSrc: `/illustrations/${exercise.illustrationId}.png`,
-}));
+function enrichExercise(exercise) {
+  return {
+    ...exercise,
+    domainLabel: domainLabels[exercise.domain],
+    bodyBrightZone: bodyBright.domainToZone[exercise.domain],
+    zone: bodyBright.domainToZone[exercise.domain],
+    imageSrc: `/illustrations/${exercise.illustrationId}.png`,
+  };
+}
+
+export const enrichedExerciseLibrary = exerciseLibrary.map(enrichExercise);
+
+export const defaultDailyExerciseIds = [
+  "pelvic_tilts",
+  "counter_pushups",
+  "brisk_walk",
+  "supported_one_leg_balance",
+  "neck_mobility",
+  "current_rehab",
+];
+
+export const dailyExercises = defaultDailyExerciseIds
+  .map((id) => enrichedExerciseLibrary.find((exercise) => exercise.id === id))
+  .filter(Boolean);

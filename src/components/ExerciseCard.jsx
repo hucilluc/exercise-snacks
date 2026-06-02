@@ -40,6 +40,7 @@ export default function ExerciseCard({
   state,
   onSetState,
   onOpen,
+  onSwap,
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
@@ -92,6 +93,7 @@ export default function ExerciseCard({
         <button
           className="secondary-button"
           type="button"
+          onClick={() => onSwap(exercise.id)}
         >
           Swap
         </button>
