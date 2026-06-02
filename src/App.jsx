@@ -109,12 +109,15 @@ function App() {
     return scores;
   }, [cardStates, dailyExercises]);
 
-  function handleSetState(exerciseId, nextState) {
-    setCardStates((currentStates) => ({
-      ...currentStates,
-      [exerciseId]: nextState,
-    }));
-  }
+ function handleSetState(exerciseId, nextState) {
+  setCardStates((currentStates) => ({
+    ...currentStates,
+    [exerciseId]:
+      currentStates[exerciseId] === nextState
+        ? "not_started"
+        : nextState,
+  }));
+}
 
   function handleOpenExercise(exerciseId) {
     setSelectedExerciseId(exerciseId);
