@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
@@ -6,16 +6,44 @@ import { bodyBright, dailyExercises } from "./data/exercises";
 import "./styles.css";
 
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const STORAGE_KEY = "exerciseSnackProfile_v1";
 
 const defaultStates = dailyExercises.reduce((acc, exercise) => {
   acc[exercise.id] = "not_started";
   return acc;
 }, {});
 
+function loadSavedProfile() {
+  try {
+    const savedProfile = window.localStorage.getItem(STORAGE_KEY);
+
+    if (!savedProfile) {
+      return null;
+    }
+
+    return JSON.parse(savedProfile);
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const todayIndex = 3;
-  const [selectedDay, setSelectedDay] = useState(todayIndex);
-  const [cardStates, setCardStates] = useState(defaultStates);
+  const savedProfile = loadSavedProfile();
+
+  const [selectedDay, setSelectedDay] = useState(savedProfile?.selectedDay ?? todayIndex);
+  const [cardStates, setCardStates] = useState(savedProfile?.cardStates ?? defaultStates);
+
+  useEffect(() => {
+    const profile = {
+      schemaVersion: 1,
+      selectedDay,
+      cardStates,
+      lastUpdated: new Date().toISOString(),
+    };
+
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+  }, [selectedDay, cardStates]);
 
   const zoneScores = useMemo(() => {
     const scores = {
