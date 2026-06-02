@@ -172,7 +172,7 @@ export const exerciseLibrary = [
     domain: "rehab",
     status: "active",
     reviewMode: "calibration",
-    illustrationId: "band_pull",
+    illustrationId: "rehab_rotator_cuff",
     illustrationMode: "category",
     contexts: ["daytime", "sitting_break"],
     context: "Daytime",

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import Header from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
+import ExerciseDetailModal from "./components/ExerciseDetailModal";
 import { bodyBright, dailyExercises } from "./data/exercises";
 import "./styles.css";
 
@@ -33,6 +34,10 @@ function App() {
 
   const [selectedDay, setSelectedDay] = useState(savedProfile?.selectedDay ?? todayIndex);
   const [cardStates, setCardStates] = useState(savedProfile?.cardStates ?? defaultStates);
+  const [selectedExerciseId, setSelectedExerciseId] = useState(null);
+
+  const selectedExercise = dailyExercises.find((exercise) => exercise.id === selectedExerciseId);
+  const selectedExerciseState = selectedExercise ? cardStates[selectedExercise.id] : "not_started";
 
   useEffect(() => {
     const profile = {
@@ -75,6 +80,14 @@ function App() {
     }));
   }
 
+  function handleOpenExercise(exerciseId) {
+    setSelectedExerciseId(exerciseId);
+  }
+
+  function handleCloseExercise() {
+    setSelectedExerciseId(null);
+  }
+
   return (
     <main className="app-shell">
       <Header />
@@ -110,11 +123,20 @@ function App() {
                 key={exercise.id}
                 state={cardStates[exercise.id]}
                 onSetState={handleSetState}
+                onOpen={handleOpenExercise}
               />
             ))}
           </div>
         </section>
       </section>
+
+      <ExerciseDetailModal
+        exercise={selectedExercise}
+        isOpen={Boolean(selectedExercise)}
+        state={selectedExerciseState}
+        onSetState={handleSetState}
+        onClose={handleCloseExercise}
+      />
     </main>
   );
 }

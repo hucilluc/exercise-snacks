@@ -35,55 +35,73 @@ function getCurrentDose(exercise) {
   );
 }
 
-export default function ExerciseCard({ exercise, state, onSetState }) {
+export default function ExerciseCard({
+  exercise,
+  state,
+  onSetState,
+  onOpen,
+}) {
   const [imageFailed, setImageFailed] = useState(false);
+
   const currentState = state || "not_started";
   const dose = getCurrentDose(exercise);
   const showImage = exercise.imageSrc && !imageFailed;
 
   return (
     <article className={`exercise-card ${currentState}`}>
-      <div className="card-topline">
-        <span className="context-badge">{exercise.context}</span>
-        <span className="domain-label">{exercise.domainLabel}</span>
-      </div>
-
-      <div className="exercise-main">
-        <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
-          {showImage ? (
-            <img
-              src={exercise.imageSrc}
-              alt=""
-              aria-hidden="true"
-              onError={() => setImageFailed(true)}
-            />
-          ) : (
-            <PlaceholderIllustration />
-          )}
+      <div
+        className="card-clickable"
+        onClick={() => onOpen(exercise.id)}
+      >
+        <div className="card-topline">
+          <span className="context-badge">{exercise.context}</span>
+          <span className="domain-label">{exercise.domainLabel}</span>
         </div>
 
-        <div>
-          <h3>{exercise.name}</h3>
-          <p className="dose">{dose}</p>
-          <p className="state-line">State: {stateLabels[currentState]}</p>
-        </div>
-      </div>
+        <div className="exercise-main">
+          <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
+            {showImage ? (
+              <img
+                src={exercise.imageSrc}
+                alt=""
+                aria-hidden="true"
+                onError={() => setImageFailed(true)}
+              />
+            ) : (
+              <PlaceholderIllustration />
+            )}
+          </div>
 
-      <div className="tag-row">
-        {exercise.tags.map((tag) => (
-          <span key={tag}>{tag}</span>
-        ))}
+          <div>
+            <h3>{exercise.name}</h3>
+            <p className="dose">{dose}</p>
+            <p className="state-line">
+              State: {stateLabels[currentState]}
+            </p>
+          </div>
+        </div>
+
+        <div className="tag-row">
+          {exercise.tags.map((tag) => (
+            <span key={tag}>{tag}</span>
+          ))}
+        </div>
       </div>
 
       <div className="card-actions multi-actions">
-        <button className="secondary-button" type="button">
+        <button
+          className="secondary-button"
+          type="button"
+        >
           Swap
         </button>
 
         <div className="state-buttons">
           {stateButtons.map((button) => (
             <button
-              className={`state-button ${currentState === button.state ? "active" : ""}`}
+              className={`state-button ${
+                currentState === button.state ? "active" : ""
+              }`}
               key={button.state}
               type="button"
               onClick={() => onSetState(exercise.id, button.state)}
