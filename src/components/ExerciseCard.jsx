@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const stateLabels = {
   not_started: "Not started",
   done: "Done",
@@ -34,8 +36,10 @@ function getCurrentDose(exercise) {
 }
 
 export default function ExerciseCard({ exercise, state, onSetState }) {
+  const [imageFailed, setImageFailed] = useState(false);
   const currentState = state || "not_started";
   const dose = getCurrentDose(exercise);
+  const showImage = exercise.imageSrc && !imageFailed;
 
   return (
     <article className={`exercise-card ${currentState}`}>
@@ -45,8 +49,17 @@ export default function ExerciseCard({ exercise, state, onSetState }) {
       </div>
 
       <div className="exercise-main">
-        <div className="exercise-illustration">
-          <PlaceholderIllustration />
+        <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
+          {showImage ? (
+            <img
+              src={exercise.imageSrc}
+              alt=""
+              aria-hidden="true"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <PlaceholderIllustration />
+          )}
         </div>
 
         <div>

@@ -72,6 +72,7 @@ h2 {
   backdrop-filter: blur(16px);
   overflow-x: auto;
   max-width: 100%;
+  margin-bottom: 0;
 }
 
 .day-pill {
@@ -226,6 +227,20 @@ h2 {
   box-shadow: 0 0 28px rgba(34, 211, 238, 0.16);
 }
 
+.exercise-card.tried {
+  border-color: rgba(34, 211, 238, 0.36);
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.1);
+}
+
+.exercise-card.skip {
+  opacity: 0.78;
+}
+
+.exercise-card.not_suitable {
+  border-color: rgba(251, 113, 133, 0.42);
+  opacity: 0.72;
+}
+
 .card-topline,
 .card-actions,
 .tag-row,
@@ -261,12 +276,24 @@ h2 {
 .exercise-illustration {
   display: grid;
   place-items: center;
-  flex: 0 0 66px;
-  width: 66px;
-  height: 66px;
+  flex: 0 0 90px;
+  width: 90px;
+  height: 90px;
   border-radius: 22px;
   background: rgba(34, 211, 238, 0.1);
   border: 1px solid rgba(34, 211, 238, 0.24);
+  overflow: hidden;
+}
+
+.exercise-illustration img {
+  display: block;
+  width: 84px;
+  height: 84px;
+  object-fit: contain;
+}
+
+.exercise-illustration.has-image {
+  background: rgba(34, 211, 238, 0.06);
 }
 
 .exercise-illustration svg {
@@ -294,6 +321,12 @@ h2 {
   color: #cbd5e1;
 }
 
+.state-line {
+  margin: 8px 0 0;
+  color: #f8fafc;
+  font-size: 0.95rem;
+}
+
 .tag-row {
   flex-wrap: wrap;
   gap: 7px;
@@ -312,13 +345,22 @@ h2 {
   gap: 10px;
 }
 
+.multi-actions {
+  align-items: flex-end;
+}
+
 .secondary-button,
-.complete-button {
+.complete-button,
+.state-button {
   border: 0;
-  border-radius: 14px;
-  padding: 11px 13px;
   cursor: pointer;
   font-weight: 900;
+}
+
+.secondary-button,
+.complete-button {
+  border-radius: 14px;
+  padding: 11px 13px;
 }
 
 .secondary-button {
@@ -330,6 +372,27 @@ h2 {
   color: #041013;
   background: #22d3ee;
   box-shadow: 0 0 18px rgba(34, 211, 238, 0.32);
+}
+
+.state-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.state-button {
+  border-radius: 999px;
+  padding: 8px 10px;
+  color: #dbeafe;
+  background: rgba(148, 163, 184, 0.14);
+  font-size: 0.78rem;
+}
+
+.state-button.active {
+  color: #03131a;
+  background: #22d3ee;
+  box-shadow: 0 0 14px rgba(34, 211, 238, 0.32);
 }
 
 @media (max-width: 900px) {
