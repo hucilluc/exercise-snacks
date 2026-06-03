@@ -1,4 +1,13 @@
 export default function Header() {
+  const today = new Date();
+
+  const formattedDate = today.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
   return (
     <header className="app-header">
       <div>
@@ -6,16 +15,9 @@ export default function Header() {
         <h1>Today’s movement menu</h1>
       </div>
 
-      <div className="week-strip" aria-label="Week days">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day, index) => (
-          <button
-            key={day}
-            className={index === 3 ? "day-pill active" : "day-pill"}
-            type="button"
-          >
-            {day}
-          </button>
-        ))}
+      <div>
+        <p className="eyebrow">Current day</p>
+        <h2>{formattedDate}</h2>
       </div>
     </header>
   );

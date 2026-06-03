@@ -14,7 +14,15 @@ const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STORAGE_KEY = "exerciseSnackProfile_v1";
 
 function toISODate(date) {
-  return date.toISOString().slice(0, 10);
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseISODate(isoDate) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return new Date(y, m - 1, d);
 }
 
 function getMonday(date = new Date()) {
@@ -32,9 +40,8 @@ function addDays(date, amount) {
   return d;
 }
 
-function getCurrentWeekDates() {
-  const monday = getMonday();
-  return days.map((_, index) => toISODate(addDays(monday, index)));
+function getWeekDates(weekStartDate) {
+  return days.map((_, index) => toISODate(addDays(weekStartDate, index)));
 }
 
 function getTodayIndex(weekDates) {
@@ -43,18 +50,46 @@ function getTodayIndex(weekDates) {
   return index === -1 ? 0 : index;
 }
 
+function getWeekStartISO(dateOrISO) {
+  const date = typeof dateOrISO === "string" ? parseISODate(dateOrISO) : dateOrISO;
+  return toISODate(getMonday(date));
+}
+
 function findExercise(exerciseId) {
   return enrichedExerciseLibrary.find((exercise) => exercise.id === exerciseId);
 }
 
-function createDayRecord(date) {
+function emptyZoneScores() {
+  return {
+    head: 0,
+    upperTorso: 0,
+    midTorso: 0,
+    lowerTorso: 0,
+    arms: 0,
+    legs: 0,
+  };
+}
+
+function emptyStateCounts() {
+  return {
+    done: 0,
+    tried: 0,
+    skip: 0,
+    not_suitable: 0,
+  };
+}
+
+function createDayRecord(date, locked = false) {
   return {
     date,
+    weekStart: getWeekStartISO(date),
+    locked,
     slots: defaultDailyExerciseIds.map((exerciseId, index) => ({
       slotId: `${date}-slot-${index + 1}`,
       exerciseId,
       originalExerciseId: exerciseId,
       state: "not_started",
+      swap: null,
     })),
   };
 }
@@ -66,67 +101,240 @@ function createWeekRecords(weekDates) {
   }, {});
 }
 
-function loadSavedProfile(weekDates) {
+function calculateScoresForDates(dayRecords, weekDates) {
+  const zoneScores = emptyZoneScores();
+  const stateCounts = emptyStateCounts();
+
+  weekDates.forEach((date) => {
+    const dayRecord = dayRecords[date];
+
+    if (!dayRecord) return;
+
+    dayRecord.slots.forEach((slot) => {
+      const exercise = findExercise(slot.exerciseId);
+
+      if (!exercise) return;
+
+      const score = bodyBright.stateScores[slot.state] ?? 0;
+      const zone = bodyBright.domainToZone[exercise.domain];
+
+      if (zone) {
+        zoneScores[zone] += score;
+      }
+
+      if (Object.prototype.hasOwnProperty.call(stateCounts, slot.state)) {
+        stateCounts[slot.state] += 1;
+      }
+    });
+  });
+
+  const totalCreditedScore = Object.values(zoneScores).reduce(
+    (total, score) => total + score,
+    0
+  );
+
+  return { zoneScores, stateCounts, totalCreditedScore };
+}
+
+function createWeeklySnapshot(weekStartISO, dayRecords, weekType = "active") {
+  const weekStartDate = parseISODate(weekStartISO);
+  const weekDates = getWeekDates(weekStartDate);
+  const weekEnd = weekDates[6];
+
+  const scores =
+    weekType === "inactive"
+      ? {
+          zoneScores: emptyZoneScores(),
+          stateCounts: emptyStateCounts(),
+          totalCreditedScore: 0,
+        }
+      : calculateScoresForDates(dayRecords, weekDates);
+
+  return {
+    weekStart: weekStartISO,
+    weekEnd,
+    weekType,
+    bodyBrightVersion: bodyBright.version ?? 1,
+    zoneScores: scores.zoneScores,
+    stateCounts: scores.stateCounts,
+    totalCreditedScore: scores.totalCreditedScore,
+    createdAt: new Date().toISOString(),
+    locked: true,
+  };
+}
+
+function inferSavedWeekStart(parsed, currentWeekStartISO) {
+  if (parsed.currentWeek?.weekStart) {
+    return parsed.currentWeek.weekStart;
+  }
+
+  if (parsed.selectedDate) {
+    return getWeekStartISO(parsed.selectedDate);
+  }
+
+  const dates = Object.keys(parsed.dayRecords ?? {}).sort();
+
+  if (dates.length > 0) {
+    return getWeekStartISO(dates[0]);
+  }
+
+  return currentWeekStartISO;
+}
+
+function normaliseSavedProfile(parsed, currentWeekDates) {
+  if (parsed.schemaVersion >= 3 && parsed.dayRecords) {
+    return parsed;
+  }
+
+  if (parsed.schemaVersion === 2 && parsed.dayRecords) {
+    return {
+      schemaVersion: 3,
+      currentWeek: {
+        weekStart: inferSavedWeekStart(parsed, currentWeekDates[0]),
+        selectedDate: parsed.selectedDate ?? currentWeekDates[getTodayIndex(currentWeekDates)],
+        editable: true,
+      },
+      selectedDate: parsed.selectedDate ?? currentWeekDates[getTodayIndex(currentWeekDates)],
+      dayRecords: parsed.dayRecords,
+      weeklySnapshots: {},
+    };
+  }
+
+  if (parsed.schemaVersion === 1) {
+    const migratedDayRecords = createWeekRecords(currentWeekDates);
+    const selectedDay =
+      typeof parsed.selectedDay === "number"
+        ? parsed.selectedDay
+        : getTodayIndex(currentWeekDates);
+    const selectedDate = currentWeekDates[selectedDay] ?? currentWeekDates[0];
+    const migratedExerciseIds = parsed.dailyExerciseIds ?? defaultDailyExerciseIds;
+    const migratedStates = parsed.cardStates ?? {};
+
+    migratedDayRecords[selectedDate] = {
+      date: selectedDate,
+      weekStart: getWeekStartISO(selectedDate),
+      locked: false,
+      slots: migratedExerciseIds.map((exerciseId, index) => ({
+        slotId: `${selectedDate}-slot-${index + 1}`,
+        exerciseId,
+        originalExerciseId: defaultDailyExerciseIds[index] ?? exerciseId,
+        state: migratedStates[exerciseId] ?? "not_started",
+        swap: null,
+      })),
+    };
+
+    return {
+      schemaVersion: 3,
+      currentWeek: {
+        weekStart: currentWeekDates[0],
+        selectedDate,
+        editable: true,
+      },
+      selectedDate,
+      dayRecords: migratedDayRecords,
+      weeklySnapshots: {},
+    };
+  }
+
+  return null;
+}
+
+function loadSavedProfile(currentWeekDates) {
   try {
     const savedProfile = window.localStorage.getItem(STORAGE_KEY);
 
-    if (!savedProfile) {
-      return null;
-    }
+    if (!savedProfile) return null;
 
     const parsed = JSON.parse(savedProfile);
-
-    if (parsed.schemaVersion === 2 && parsed.dayRecords) {
-      return parsed;
-    }
-
-    if (parsed.schemaVersion === 1) {
-      const migratedDayRecords = createWeekRecords(weekDates);
-      const selectedDay =
-        typeof parsed.selectedDay === "number" ? parsed.selectedDay : getTodayIndex(weekDates);
-      const selectedDate = weekDates[selectedDay] ?? weekDates[getTodayIndex(weekDates)];
-      const migratedExerciseIds = parsed.dailyExerciseIds ?? defaultDailyExerciseIds;
-      const migratedStates = parsed.cardStates ?? {};
-
-      migratedDayRecords[selectedDate] = {
-        date: selectedDate,
-        slots: migratedExerciseIds.map((exerciseId, index) => ({
-          slotId: `${selectedDate}-slot-${index + 1}`,
-          exerciseId,
-          originalExerciseId: defaultDailyExerciseIds[index] ?? exerciseId,
-          state: migratedStates[exerciseId] ?? "not_started",
-        })),
-      };
-
-      return {
-        schemaVersion: 2,
-        selectedDate,
-        dayRecords: migratedDayRecords,
-      };
-    }
-
-    return null;
+    return normaliseSavedProfile(parsed, currentWeekDates);
   } catch {
     return null;
   }
 }
 
-function ensureCurrentWeekRecords(savedProfile, weekDates) {
-  const defaultRecords = createWeekRecords(weekDates);
-  const savedRecords = savedProfile?.dayRecords ?? {};
+function rolloverProfile(savedProfile, currentWeekDates) {
+  const currentWeekStartISO = currentWeekDates[0];
 
-  return weekDates.reduce((acc, date) => {
-    acc[date] = savedRecords[date] ?? defaultRecords[date];
-    return acc;
-  }, {});
+  if (!savedProfile) {
+    return {
+      schemaVersion: 3,
+      currentWeek: {
+        weekStart: currentWeekStartISO,
+        selectedDate: currentWeekDates[getTodayIndex(currentWeekDates)],
+        editable: true,
+      },
+      selectedDate: currentWeekDates[getTodayIndex(currentWeekDates)],
+      dayRecords: createWeekRecords(currentWeekDates),
+      weeklySnapshots: {},
+    };
+  }
+
+  let dayRecords = { ...(savedProfile.dayRecords ?? {}) };
+  const weeklySnapshots = { ...(savedProfile.weeklySnapshots ?? {}) };
+  const savedWeekStartISO = inferSavedWeekStart(savedProfile, currentWeekStartISO);
+
+  let cursor = parseISODate(savedWeekStartISO);
+  const currentWeekStartDate = parseISODate(currentWeekStartISO);
+
+  while (cursor < currentWeekStartDate) {
+    const weekStartISO = toISODate(cursor);
+    const weekDates = getWeekDates(cursor);
+
+    const hasAnyDayRecord = weekDates.some((date) => dayRecords[date]);
+
+    if (!weeklySnapshots[weekStartISO]) {
+      weeklySnapshots[weekStartISO] = createWeeklySnapshot(
+        weekStartISO,
+        dayRecords,
+        hasAnyDayRecord ? "active" : "inactive"
+      );
+    }
+
+    weekDates.forEach((date) => {
+      if (dayRecords[date]) {
+        dayRecords[date] = {
+          ...dayRecords[date],
+          locked: true,
+        };
+      }
+    });
+
+    cursor = addDays(cursor, 7);
+  }
+
+  const currentWeekDefaults = createWeekRecords(currentWeekDates);
+
+  currentWeekDates.forEach((date) => {
+    dayRecords[date] = dayRecords[date] ?? currentWeekDefaults[date];
+    dayRecords[date] = {
+      ...dayRecords[date],
+      locked: false,
+      weekStart: currentWeekStartISO,
+    };
+  });
+
+  const selectedDate = currentWeekDates.includes(savedProfile.selectedDate)
+    ? savedProfile.selectedDate
+    : currentWeekDates[getTodayIndex(currentWeekDates)];
+
+  return {
+    schemaVersion: 3,
+    currentWeek: {
+      weekStart: currentWeekStartISO,
+      weekEnd: currentWeekDates[6],
+      selectedDate,
+      editable: true,
+    },
+    selectedDate,
+    dayRecords,
+    weeklySnapshots,
+  };
 }
 
 function getSwapOptions(slot, currentSlots) {
   const currentExercise = findExercise(slot.exerciseId);
 
-  if (!currentExercise) {
-    return [];
-  }
+  if (!currentExercise) return [];
 
   return enrichedExerciseLibrary.filter(
     (exercise) =>
@@ -139,35 +347,77 @@ function getSwapOptions(slot, currentSlots) {
   );
 }
 
-function App() {
-  const weekDates = useMemo(() => getCurrentWeekDates(), []);
-  const todayIndex = getTodayIndex(weekDates);
-  const savedProfile = useMemo(() => loadSavedProfile(weekDates), [weekDates]);
+function formatWeekLabel(snapshot) {
+  const start = parseISODate(snapshot.weekStart);
+  const end = parseISODate(snapshot.weekEnd);
 
-  const [selectedDay, setSelectedDay] = useState(() => {
-    const savedIndex = savedProfile?.selectedDate
-      ? weekDates.indexOf(savedProfile.selectedDate)
-      : -1;
-
-    return savedIndex === -1 ? todayIndex : savedIndex;
+  const startLabel = start.toLocaleDateString("en-GB", {
+    day: "numeric",
   });
 
-  const [dayRecords, setDayRecords] = useState(() =>
-    ensureCurrentWeekRecords(savedProfile, weekDates)
+  const endLabel = end.toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+  });
+
+  return `${startLabel}–${endLabel}`;
+}
+
+function getMonthLabel(snapshot) {
+  const start = parseISODate(snapshot.weekStart);
+
+  return start.toLocaleDateString("en-GB", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function groupSnapshotsByMonth(weeklySnapshots) {
+  const snapshots = Object.values(weeklySnapshots).sort((a, b) =>
+    a.weekStart.localeCompare(b.weekStart)
   );
 
+  return snapshots.reduce((groups, snapshot) => {
+    const label = getMonthLabel(snapshot);
+
+    if (!groups[label]) {
+      groups[label] = [];
+    }
+
+    groups[label].push(snapshot);
+    return groups;
+  }, {});
+}
+
+function App() {
+  const currentWeekDates = useMemo(() => getWeekDates(getMonday()), []);
+  const initialProfile = useMemo(() => {
+    const savedProfile = loadSavedProfile(currentWeekDates);
+    return rolloverProfile(savedProfile, currentWeekDates);
+  }, [currentWeekDates]);
+
+  const [view, setView] = useState("today");
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const savedIndex = currentWeekDates.indexOf(initialProfile.selectedDate);
+    return savedIndex === -1 ? getTodayIndex(currentWeekDates) : savedIndex;
+  });
+
+  const [dayRecords, setDayRecords] = useState(initialProfile.dayRecords);
+  const [weeklySnapshots, setWeeklySnapshots] = useState(initialProfile.weeklySnapshots);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
 
-  const selectedDate = weekDates[selectedDay];
+  const selectedDate = currentWeekDates[selectedDay];
   const selectedDayRecord = dayRecords[selectedDate] ?? createDayRecord(selectedDate);
+  const historyGroups = useMemo(
+    () => groupSnapshotsByMonth(weeklySnapshots),
+    [weeklySnapshots]
+  );
 
   const dailyCards = selectedDayRecord.slots
     .map((slot) => {
       const exercise = findExercise(slot.exerciseId);
 
-      if (!exercise) {
-        return null;
-      }
+      if (!exercise) return null;
 
       return {
         ...exercise,
@@ -196,62 +446,51 @@ function App() {
 
   const selectedExerciseState = selectedSlot?.state ?? "not_started";
 
+  const zoneScores = useMemo(() => {
+    return calculateScoresForDates(dayRecords, currentWeekDates).zoneScores;
+  }, [dayRecords, currentWeekDates]);
+
   useEffect(() => {
     const profile = {
-      schemaVersion: 2,
+      schemaVersion: 3,
+      currentWeek: {
+        weekStart: currentWeekDates[0],
+        weekEnd: currentWeekDates[6],
+        selectedDate,
+        editable: true,
+      },
       selectedDate,
       dayRecords,
+      weeklySnapshots,
       lastUpdated: new Date().toISOString(),
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-  }, [selectedDate, dayRecords]);
-
-  const zoneScores = useMemo(() => {
-    const scores = {
-      head: 0,
-      upperTorso: 0,
-      midTorso: 0,
-      lowerTorso: 0,
-      arms: 0,
-      legs: 0,
-    };
-
-    Object.values(dayRecords).forEach((dayRecord) => {
-      dayRecord.slots.forEach((slot) => {
-        const exercise = findExercise(slot.exerciseId);
-
-        if (!exercise) {
-          return;
-        }
-
-        const score = bodyBright.stateScores[slot.state] ?? 0;
-        const zone = bodyBright.domainToZone[exercise.domain];
-
-        if (zone) {
-          scores[zone] += score;
-        }
-      });
-    });
-
-    return scores;
-  }, [dayRecords]);
+  }, [selectedDate, dayRecords, weeklySnapshots, currentWeekDates]);
 
   function handleSetState(slotId, nextState) {
-    setDayRecords((currentRecords) => ({
-      ...currentRecords,
-      [selectedDate]: {
-        ...currentRecords[selectedDate],
-        slots: currentRecords[selectedDate].slots.map((slot) =>
-          slot.slotId === slotId
-            ? {
-                ...slot,
-                state: slot.state === nextState ? "not_started" : nextState,
-              }
-            : slot
-        ),
-      },
-    }));
+    setDayRecords((currentRecords) => {
+      const currentDayRecord = currentRecords[selectedDate];
+
+      if (!currentDayRecord || currentDayRecord.locked) {
+        return currentRecords;
+      }
+
+      return {
+        ...currentRecords,
+        [selectedDate]: {
+          ...currentDayRecord,
+          slots: currentDayRecord.slots.map((slot) =>
+            slot.slotId === slotId
+              ? {
+                  ...slot,
+                  state: slot.state === nextState ? "not_started" : nextState,
+                }
+              : slot
+          ),
+        },
+      };
+    });
   }
 
   function handleOpenExercise(slotId) {
@@ -265,17 +504,18 @@ function App() {
   function handleSwapExercise(slotId) {
     setDayRecords((currentRecords) => {
       const currentDayRecord = currentRecords[selectedDate];
-      const currentSlot = currentDayRecord.slots.find((slot) => slot.slotId === slotId);
 
-      if (!currentSlot) {
+      if (!currentDayRecord || currentDayRecord.locked) {
         return currentRecords;
       }
+
+      const currentSlot = currentDayRecord.slots.find((slot) => slot.slotId === slotId);
+
+      if (!currentSlot) return currentRecords;
 
       const swapOptions = getSwapOptions(currentSlot, currentDayRecord.slots);
 
-      if (swapOptions.length <= 1) {
-        return currentRecords;
-      }
+      if (swapOptions.length <= 1) return currentRecords;
 
       const currentOptionIndex = swapOptions.findIndex(
         (exercise) => exercise.id === currentSlot.exerciseId
@@ -293,6 +533,12 @@ function App() {
                   ...slot,
                   exerciseId: replacement.id,
                   state: "not_started",
+                  swap: {
+                    wasSwapped: true,
+                    swappedAt: new Date().toISOString(),
+                    fromExerciseId: slot.exerciseId,
+                    toExerciseId: replacement.id,
+                  },
                 }
               : slot
           ),
@@ -305,47 +551,115 @@ function App() {
     <main className="app-shell">
       <Header />
 
-      <div className="week-strip" aria-label="Select day">
-        {days.map((day, index) => (
-          <button
-            className={`day-pill ${selectedDay === index ? "active" : ""}`}
-            key={day}
-            type="button"
-            onClick={() => {
-              setSelectedDay(index);
-              setSelectedSlotId(null);
-            }}
-          >
-            {day}
-          </button>
-        ))}
+      <div className="view-toggle" aria-label="App section">
+        <button
+          className={`day-pill ${view === "today" ? "active" : ""}`}
+          type="button"
+          onClick={() => setView("today")}
+        >
+          Today
+        </button>
+        <button
+          className={`day-pill ${view === "history" ? "active" : ""}`}
+          type="button"
+          onClick={() => {
+            setView("history");
+            setSelectedSlotId(null);
+          }}
+        >
+          History
+        </button>
       </div>
 
-      <section className="layout">
-        <aside className="body-panel" aria-label="Body Bright weekly progress">
-          <BodyBrightFigure zoneScores={zoneScores} weeklyTarget={bodyBright.weeklyTarget} />
-        </aside>
-
-        <section className="daily-panel">
-          <div className="panel-heading">
-            <p className="eyebrow">Six gentle prompts</p>
-            <h2>Small enough to start</h2>
-          </div>
-
-          <div className="cards-grid">
-            {dailyCards.map((exercise) => (
-              <ExerciseCard
-                exercise={exercise}
-                key={exercise.slotId}
-                state={exercise.state}
-                onSetState={handleSetState}
-                onOpen={handleOpenExercise}
-                onSwap={handleSwapExercise}
-              />
+      {view === "today" ? (
+        <>
+          <div className="week-strip" aria-label="Select day">
+            {days.map((day, index) => (
+              <button
+                className={`day-pill ${selectedDay === index ? "active" : ""}`}
+                key={day}
+                type="button"
+                onClick={() => {
+                  setSelectedDay(index);
+                  setSelectedSlotId(null);
+                }}
+              >
+                {day}
+              </button>
             ))}
           </div>
+
+          <section className="layout">
+            <aside className="body-panel" aria-label="Body Bright weekly progress">
+              <BodyBrightFigure
+                zoneScores={zoneScores}
+                weeklyTarget={bodyBright.weeklyTarget}
+              />
+            </aside>
+
+            <section className="daily-panel">
+              <div className="panel-heading">
+                <p className="eyebrow">Six gentle prompts</p>
+                <h2>Small enough to start</h2>
+              </div>
+
+              <div className="cards-grid">
+                {dailyCards.map((exercise) => (
+                  <ExerciseCard
+                    exercise={exercise}
+                    key={exercise.slotId}
+                    state={exercise.state}
+                    onSetState={handleSetState}
+                    onOpen={handleOpenExercise}
+                    onSwap={handleSwapExercise}
+                  />
+                ))}
+              </div>
+            </section>
+          </section>
+        </>
+      ) : (
+        <section className="history-panel">
+          <div className="panel-heading">
+            <p className="eyebrow">Weekly snapshots</p>
+            <h2>History Gallery</h2>
+          </div>
+
+          {Object.keys(historyGroups).length === 0 ? (
+            <p className="empty-history">
+              No completed weeks yet. The first snapshot will appear after week rollover.
+            </p>
+          ) : (
+            Object.entries(historyGroups).map(([monthLabel, snapshots]) => (
+              <section className="history-month" key={monthLabel}>
+                <h3>{monthLabel}</h3>
+
+                <div className="history-grid">
+                  {snapshots.map((snapshot) => (
+                    <article
+                      className={`history-card ${
+                        snapshot.weekType === "inactive" ? "inactive" : "active"
+                      }`}
+                      key={snapshot.weekStart}
+                    >
+                      <BodyBrightFigure
+                        zoneScores={snapshot.zoneScores}
+                        weeklyTarget={bodyBright.weeklyTarget}
+                      />
+                      <p>{formatWeekLabel(snapshot)}</p>
+                      <span>
+                        {snapshot.weekType === "inactive"
+                          ? "Inactive week"
+                          : `${snapshot.totalCreditedScore} credits`}
+                      </span>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            ))
+          )}
         </section>
-      </section>
+      )}
 
       <ExerciseDetailModal
         exercise={selectedExercise}
