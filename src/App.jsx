@@ -13,12 +13,60 @@ import "./styles.css";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STORAGE_KEY = "exerciseSnackProfile_v1";
 
-const defaultStates = enrichedExerciseLibrary.reduce((acc, exercise) => {
-  acc[exercise.id] = "not_started";
-  return acc;
-}, {});
+function toISODate(date) {
+  return date.toISOString().slice(0, 10);
+}
 
-function loadSavedProfile() {
+function getMonday(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date, amount) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + amount);
+  return d;
+}
+
+function getCurrentWeekDates() {
+  const monday = getMonday();
+  return days.map((_, index) => toISODate(addDays(monday, index)));
+}
+
+function getTodayIndex(weekDates) {
+  const today = toISODate(new Date());
+  const index = weekDates.indexOf(today);
+  return index === -1 ? 0 : index;
+}
+
+function findExercise(exerciseId) {
+  return enrichedExerciseLibrary.find((exercise) => exercise.id === exerciseId);
+}
+
+function createDayRecord(date) {
+  return {
+    date,
+    slots: defaultDailyExerciseIds.map((exerciseId, index) => ({
+      slotId: `${date}-slot-${index + 1}`,
+      exerciseId,
+      originalExerciseId: exerciseId,
+      state: "not_started",
+    })),
+  };
+}
+
+function createWeekRecords(weekDates) {
+  return weekDates.reduce((acc, date) => {
+    acc[date] = createDayRecord(date);
+    return acc;
+  }, {});
+}
+
+function loadSavedProfile(weekDates) {
   try {
     const savedProfile = window.localStorage.getItem(STORAGE_KEY);
 
@@ -26,23 +74,57 @@ function loadSavedProfile() {
       return null;
     }
 
-    return JSON.parse(savedProfile);
+    const parsed = JSON.parse(savedProfile);
+
+    if (parsed.schemaVersion === 2 && parsed.dayRecords) {
+      return parsed;
+    }
+
+    if (parsed.schemaVersion === 1) {
+      const migratedDayRecords = createWeekRecords(weekDates);
+      const selectedDay =
+        typeof parsed.selectedDay === "number" ? parsed.selectedDay : getTodayIndex(weekDates);
+      const selectedDate = weekDates[selectedDay] ?? weekDates[getTodayIndex(weekDates)];
+      const migratedExerciseIds = parsed.dailyExerciseIds ?? defaultDailyExerciseIds;
+      const migratedStates = parsed.cardStates ?? {};
+
+      migratedDayRecords[selectedDate] = {
+        date: selectedDate,
+        slots: migratedExerciseIds.map((exerciseId, index) => ({
+          slotId: `${selectedDate}-slot-${index + 1}`,
+          exerciseId,
+          originalExerciseId: defaultDailyExerciseIds[index] ?? exerciseId,
+          state: migratedStates[exerciseId] ?? "not_started",
+        })),
+      };
+
+      return {
+        schemaVersion: 2,
+        selectedDate,
+        dayRecords: migratedDayRecords,
+      };
+    }
+
+    return null;
   } catch {
     return null;
   }
 }
 
-function getSwapOptions(exerciseId, currentDailyIds) {
-  const currentExercise = enrichedExerciseLibrary.find((exercise) => exercise.id === exerciseId);
+function ensureCurrentWeekRecords(savedProfile, weekDates) {
+  const defaultRecords = createWeekRecords(weekDates);
+  const savedRecords = savedProfile?.dayRecords ?? {};
+
+  return weekDates.reduce((acc, date) => {
+    acc[date] = savedRecords[date] ?? defaultRecords[date];
+    return acc;
+  }, {});
+}
+
+function getSwapOptions(slot, currentSlots) {
+  const currentExercise = findExercise(slot.exerciseId);
 
   if (!currentExercise) {
-    return [];
-  }
-
-  const currentSlotIndex = currentDailyIds.indexOf(exerciseId);
-  const originalExerciseId = defaultDailyExerciseIds[currentSlotIndex];
-
-  if (!originalExerciseId) {
     return [];
   }
 
@@ -50,41 +132,80 @@ function getSwapOptions(exerciseId, currentDailyIds) {
     (exercise) =>
       exercise.status === "active" &&
       exercise.domain === currentExercise.domain &&
-      !currentDailyIds.some((id, index) => index !== currentSlotIndex && id === exercise.id)
+      !currentSlots.some(
+        (otherSlot) =>
+          otherSlot.slotId !== slot.slotId && otherSlot.exerciseId === exercise.id
+      )
   );
 }
 
 function App() {
-  const todayIndex = 3;
-  const savedProfile = loadSavedProfile();
+  const weekDates = useMemo(() => getCurrentWeekDates(), []);
+  const todayIndex = getTodayIndex(weekDates);
+  const savedProfile = useMemo(() => loadSavedProfile(weekDates), [weekDates]);
 
-  const [selectedDay, setSelectedDay] = useState(savedProfile?.selectedDay ?? todayIndex);
-  const [cardStates, setCardStates] = useState(savedProfile?.cardStates ?? defaultStates);
-  const [dailyExerciseIds, setDailyExerciseIds] = useState(
-    savedProfile?.dailyExerciseIds ?? defaultDailyExerciseIds
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const savedIndex = savedProfile?.selectedDate
+      ? weekDates.indexOf(savedProfile.selectedDate)
+      : -1;
+
+    return savedIndex === -1 ? todayIndex : savedIndex;
+  });
+
+  const [dayRecords, setDayRecords] = useState(() =>
+    ensureCurrentWeekRecords(savedProfile, weekDates)
   );
-  const [selectedExerciseId, setSelectedExerciseId] = useState(null);
 
-  const dailyExercises = dailyExerciseIds
-    .map((id) => enrichedExerciseLibrary.find((exercise) => exercise.id === id))
+  const [selectedSlotId, setSelectedSlotId] = useState(null);
+
+  const selectedDate = weekDates[selectedDay];
+  const selectedDayRecord = dayRecords[selectedDate] ?? createDayRecord(selectedDate);
+
+  const dailyCards = selectedDayRecord.slots
+    .map((slot) => {
+      const exercise = findExercise(slot.exerciseId);
+
+      if (!exercise) {
+        return null;
+      }
+
+      return {
+        ...exercise,
+        id: slot.slotId,
+        exerciseId: exercise.id,
+        slotId: slot.slotId,
+        state: slot.state,
+      };
+    })
     .filter(Boolean);
 
-  const selectedExercise = enrichedExerciseLibrary.find(
-    (exercise) => exercise.id === selectedExerciseId
+  const selectedSlot = selectedDayRecord.slots.find(
+    (slot) => slot.slotId === selectedSlotId
   );
-  const selectedExerciseState = selectedExercise ? cardStates[selectedExercise.id] : "not_started";
+
+  const selectedExerciseBase = selectedSlot ? findExercise(selectedSlot.exerciseId) : null;
+
+  const selectedExercise = selectedExerciseBase
+    ? {
+        ...selectedExerciseBase,
+        id: selectedSlot.slotId,
+        exerciseId: selectedExerciseBase.id,
+        slotId: selectedSlot.slotId,
+      }
+    : null;
+
+  const selectedExerciseState = selectedSlot?.state ?? "not_started";
 
   useEffect(() => {
     const profile = {
-      schemaVersion: 1,
-      selectedDay,
-      cardStates,
-      dailyExerciseIds,
+      schemaVersion: 2,
+      selectedDate,
+      dayRecords,
       lastUpdated: new Date().toISOString(),
     };
 
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
-  }, [selectedDay, cardStates, dailyExerciseIds]);
+  }, [selectedDate, dayRecords]);
 
   const zoneScores = useMemo(() => {
     const scores = {
@@ -96,68 +217,87 @@ function App() {
       legs: 0,
     };
 
-    dailyExercises.forEach((exercise) => {
-      const state = cardStates[exercise.id];
-      const score = bodyBright.stateScores[state] ?? 0;
-      const zone = bodyBright.domainToZone[exercise.domain];
+    Object.values(dayRecords).forEach((dayRecord) => {
+      dayRecord.slots.forEach((slot) => {
+        const exercise = findExercise(slot.exerciseId);
 
-      if (zone) {
-        scores[zone] += score;
-      }
+        if (!exercise) {
+          return;
+        }
+
+        const score = bodyBright.stateScores[slot.state] ?? 0;
+        const zone = bodyBright.domainToZone[exercise.domain];
+
+        if (zone) {
+          scores[zone] += score;
+        }
+      });
     });
 
     return scores;
-  }, [cardStates, dailyExercises]);
+  }, [dayRecords]);
 
- function handleSetState(exerciseId, nextState) {
-  setCardStates((currentStates) => ({
-    ...currentStates,
-    [exerciseId]:
-      currentStates[exerciseId] === nextState
-        ? "not_started"
-        : nextState,
-  }));
-}
+  function handleSetState(slotId, nextState) {
+    setDayRecords((currentRecords) => ({
+      ...currentRecords,
+      [selectedDate]: {
+        ...currentRecords[selectedDate],
+        slots: currentRecords[selectedDate].slots.map((slot) =>
+          slot.slotId === slotId
+            ? {
+                ...slot,
+                state: slot.state === nextState ? "not_started" : nextState,
+              }
+            : slot
+        ),
+      },
+    }));
+  }
 
-  function handleOpenExercise(exerciseId) {
-    setSelectedExerciseId(exerciseId);
+  function handleOpenExercise(slotId) {
+    setSelectedSlotId(slotId);
   }
 
   function handleCloseExercise() {
-    setSelectedExerciseId(null);
+    setSelectedSlotId(null);
   }
 
-  function handleSwapExercise(exerciseId) {
-    setDailyExerciseIds((currentIds) => {
-      const currentSlotIndex = currentIds.indexOf(exerciseId);
+  function handleSwapExercise(slotId) {
+    setDayRecords((currentRecords) => {
+      const currentDayRecord = currentRecords[selectedDate];
+      const currentSlot = currentDayRecord.slots.find((slot) => slot.slotId === slotId);
 
-      if (currentSlotIndex === -1) {
-        return currentIds;
+      if (!currentSlot) {
+        return currentRecords;
       }
 
-      const swapOptions = getSwapOptions(exerciseId, currentIds);
+      const swapOptions = getSwapOptions(currentSlot, currentDayRecord.slots);
 
       if (swapOptions.length <= 1) {
-        return currentIds;
+        return currentRecords;
       }
 
-      const currentOptionIndex = swapOptions.findIndex((exercise) => exercise.id === exerciseId);
+      const currentOptionIndex = swapOptions.findIndex(
+        (exercise) => exercise.id === currentSlot.exerciseId
+      );
       const nextOptionIndex = (currentOptionIndex + 1) % swapOptions.length;
       const replacement = swapOptions[nextOptionIndex];
 
-      setCardStates((currentStates) => ({
-        ...currentStates,
-        [exerciseId]: "not_started",
-        [replacement.id]: "not_started",
-      }));
-
-      if (selectedExerciseId === exerciseId) {
-        setSelectedExerciseId(replacement.id);
-      }
-
-      return currentIds.map((id, index) =>
-        index === currentSlotIndex ? replacement.id : id
-      );
+      return {
+        ...currentRecords,
+        [selectedDate]: {
+          ...currentDayRecord,
+          slots: currentDayRecord.slots.map((slot) =>
+            slot.slotId === slotId
+              ? {
+                  ...slot,
+                  exerciseId: replacement.id,
+                  state: "not_started",
+                }
+              : slot
+          ),
+        },
+      };
     });
   }
 
@@ -171,7 +311,10 @@ function App() {
             className={`day-pill ${selectedDay === index ? "active" : ""}`}
             key={day}
             type="button"
-            onClick={() => setSelectedDay(index)}
+            onClick={() => {
+              setSelectedDay(index);
+              setSelectedSlotId(null);
+            }}
           >
             {day}
           </button>
@@ -190,11 +333,11 @@ function App() {
           </div>
 
           <div className="cards-grid">
-            {dailyExercises.map((exercise) => (
+            {dailyCards.map((exercise) => (
               <ExerciseCard
                 exercise={exercise}
-                key={exercise.id}
-                state={cardStates[exercise.id]}
+                key={exercise.slotId}
+                state={exercise.state}
                 onSetState={handleSetState}
                 onOpen={handleOpenExercise}
                 onSwap={handleSwapExercise}
