@@ -26,6 +26,7 @@ export default function ExerciseDetailModal({
   isOpen,
   state,
   onSetState,
+  onSwap,
   onClose,
 }) {
   if (!isOpen || !exercise) {
@@ -39,13 +40,10 @@ export default function ExerciseDetailModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="exercise-modal"
+        style={{ "--card-accent": exercise.zoneColor || "#22d3ee" }}
         onClick={(event) => event.stopPropagation()}
       >
-        <button
-          className="modal-close"
-          type="button"
-          onClick={onClose}
-        >
+        <button className="modal-close" type="button" onClick={onClose}>
           ×
         </button>
 
@@ -57,11 +55,7 @@ export default function ExerciseDetailModal({
         <h2>{exercise.name}</h2>
 
         <div className="modal-image">
-          <img
-            src={exercise.imageSrc}
-            alt=""
-            aria-hidden="true"
-          />
+          <img src={exercise.imageSrc} alt="" aria-hidden="true" />
         </div>
 
         <div className="modal-state-panel">
@@ -81,6 +75,14 @@ export default function ExerciseDetailModal({
               </button>
             ))}
           </div>
+
+          <button
+            className="secondary-button modal-swap-button"
+            type="button"
+            onClick={() => onSwap(exercise.id)}
+          >
+            Swap exercise
+          </button>
         </div>
 
         <div className="modal-section">

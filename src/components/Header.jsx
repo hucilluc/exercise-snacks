@@ -9,14 +9,14 @@ export default function Header() {
   });
 
   return (
-    <header className="app-header">
+    <header className="app-header compact-header">
       <div>
-        <p className="eyebrow">Exercise Snack</p>
-        <h1>Today’s movement menu</h1>
+        <p className="eyebrow">Body Bright</p>
+        <h1>Exercise snacks</h1>
       </div>
 
-      <div>
-        <p className="eyebrow">Current day</p>
+      <div className="current-date-block">
+        <p className="eyebrow">Today</p>
         <h2>{formattedDate}</h2>
       </div>
     </header>

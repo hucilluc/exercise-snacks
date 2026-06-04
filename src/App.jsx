@@ -13,6 +13,15 @@ import "./styles.css";
 const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const STORAGE_KEY = "exerciseSnackProfile_v1";
 
+const zoneColors = {
+  head: "#8a1dff",
+  upperTorso: "#18dff0",
+  midTorso: "#ffe100",
+  lowerTorso: "#005dff",
+  arms: "#ff5a1f",
+  legs: "#1eff3c",
+};
+
 function toISODate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -57,6 +66,11 @@ function getWeekStartISO(dateOrISO) {
 
 function findExercise(exerciseId) {
   return enrichedExerciseLibrary.find((exercise) => exercise.id === exerciseId);
+}
+
+function getZoneColorForExercise(exercise) {
+  const zone = bodyBright.domainToZone[exercise.domain];
+  return zoneColors[zone] || "#22d3ee";
 }
 
 function emptyZoneScores() {
@@ -391,6 +405,8 @@ function groupSnapshotsByMonth(weeklySnapshots) {
 
 function App() {
   const currentWeekDates = useMemo(() => getWeekDates(getMonday()), []);
+  const todayIndex = getTodayIndex(currentWeekDates);
+
   const initialProfile = useMemo(() => {
     const savedProfile = loadSavedProfile(currentWeekDates);
     return rolloverProfile(savedProfile, currentWeekDates);
@@ -399,7 +415,7 @@ function App() {
   const [view, setView] = useState("today");
   const [selectedDay, setSelectedDay] = useState(() => {
     const savedIndex = currentWeekDates.indexOf(initialProfile.selectedDate);
-    return savedIndex === -1 ? getTodayIndex(currentWeekDates) : savedIndex;
+    return savedIndex === -1 ? todayIndex : savedIndex;
   });
 
   const [dayRecords, setDayRecords] = useState(initialProfile.dayRecords);
@@ -425,6 +441,7 @@ function App() {
         exerciseId: exercise.id,
         slotId: slot.slotId,
         state: slot.state,
+        zoneColor: getZoneColorForExercise(exercise),
       };
     })
     .filter(Boolean);
@@ -441,6 +458,7 @@ function App() {
         id: selectedSlot.slotId,
         exerciseId: selectedExerciseBase.id,
         slotId: selectedSlot.slotId,
+        zoneColor: getZoneColorForExercise(selectedExerciseBase),
       }
     : null;
 
@@ -555,10 +573,15 @@ function App() {
         <button
           className={`day-pill ${view === "today" ? "active" : ""}`}
           type="button"
-          onClick={() => setView("today")}
+          onClick={() => {
+            setView("today");
+            setSelectedDay(todayIndex);
+            setSelectedSlotId(null);
+          }}
         >
           Today
         </button>
+
         <button
           className={`day-pill ${view === "history" ? "active" : ""}`}
           type="button"
@@ -576,7 +599,9 @@ function App() {
           <div className="week-strip" aria-label="Select day">
             {days.map((day, index) => (
               <button
-                className={`day-pill ${selectedDay === index ? "active" : ""}`}
+                className={`day-pill ${selectedDay === index ? "active" : ""} ${
+                  todayIndex === index ? "is-today" : ""
+                }`}
                 key={day}
                 type="button"
                 onClick={() => {
@@ -666,6 +691,7 @@ function App() {
         isOpen={Boolean(selectedExercise)}
         state={selectedExerciseState}
         onSetState={handleSetState}
+        onSwap={handleSwapExercise}
         onClose={handleCloseExercise}
       />
     </main>

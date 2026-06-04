@@ -8,13 +8,6 @@ const stateLabels = {
   not_suitable: "Not suitable",
 };
 
-const stateButtons = [
-  { state: "done", label: "Done" },
-  { state: "tried", label: "Tried" },
-  { state: "skip", label: "Skip" },
-  { state: "not_suitable", label: "Not suitable" },
-];
-
 function PlaceholderIllustration() {
   return (
     <svg viewBox="0 0 64 64" aria-hidden="true">
@@ -35,13 +28,7 @@ function getCurrentDose(exercise) {
   );
 }
 
-export default function ExerciseCard({
-  exercise,
-  state,
-  onSetState,
-  onOpen,
-  onSwap,
-}) {
+export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   const currentState = state || "not_started";
@@ -49,69 +36,56 @@ export default function ExerciseCard({
   const showImage = exercise.imageSrc && !imageFailed;
 
   return (
-    <article className={`exercise-card ${currentState}`}>
-      <div
-        className="card-clickable"
+    <article
+      className={`exercise-card compact-exercise-card ${currentState}`}
+      style={{ "--card-accent": exercise.zoneColor || "#22d3ee" }}
+    >
+      <button
+        className="compact-card-main"
+        type="button"
         onClick={() => onOpen(exercise.id)}
       >
-        <div className="card-topline">
-          <span className="context-badge">{exercise.context}</span>
-          <span className="domain-label">{exercise.domainLabel}</span>
+        <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
+          {showImage ? (
+            <img
+              src={exercise.imageSrc}
+              alt=""
+              aria-hidden="true"
+              onError={() => setImageFailed(true)}
+            />
+          ) : (
+            <PlaceholderIllustration />
+          )}
         </div>
 
-        <div className="exercise-main">
-          <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
-            {showImage ? (
-              <img
-                src={exercise.imageSrc}
-                alt=""
-                aria-hidden="true"
-                onError={() => setImageFailed(true)}
-              />
-            ) : (
-              <PlaceholderIllustration />
-            )}
+        <div className="compact-card-text">
+          <div className="compact-card-meta">
+            <span>{exercise.context}</span>
+            <span>{exercise.domainLabel}</span>
           </div>
 
-          <div>
-            <h3>{exercise.name}</h3>
-            <p className="dose">{dose}</p>
-            <p className="state-line">
-              State: {stateLabels[currentState]}
-            </p>
-          </div>
+          <h3>{exercise.name}</h3>
+          <p className="dose">{dose}</p>
+          <p className="state-line">{stateLabels[currentState]}</p>
         </div>
+      </button>
 
-        <div className="tag-row">
-          {exercise.tags.map((tag) => (
-            <span key={tag}>{tag}</span>
-          ))}
-        </div>
-      </div>
-
-      <div className="card-actions multi-actions">
+      <div className="compact-card-actions">
         <button
-          className="secondary-button"
+          className={`state-button quick-state ${currentState === "done" ? "active" : ""}`}
           type="button"
-          onClick={() => onSwap(exercise.id)}
+          onClick={() => onSetState(exercise.id, "done")}
         >
-          Swap
+          Done
         </button>
 
-        <div className="state-buttons">
-          {stateButtons.map((button) => (
-            <button
-              className={`state-button ${
-                currentState === button.state ? "active" : ""
-              }`}
-              key={button.state}
-              type="button"
-              onClick={() => onSetState(exercise.id, button.state)}
-            >
-              {button.label}
-            </button>
-          ))}
-        </div>
+        <button
+          className={`state-button quick-state ${currentState === "tried" ? "active" : ""}`}
+          type="button"
+          onClick={() => onSetState(exercise.id, "tried")}
+        >
+          Tried
+        </button>
       </div>
     </article>
   );
