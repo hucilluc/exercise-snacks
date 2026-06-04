@@ -178,27 +178,17 @@ function createWeeklySnapshot(weekStartISO, dayRecords, weekType = "active") {
 }
 
 function inferSavedWeekStart(parsed, currentWeekStartISO) {
-  if (parsed.currentWeek?.weekStart) {
-    return parsed.currentWeek.weekStart;
-  }
-
-  if (parsed.selectedDate) {
-    return getWeekStartISO(parsed.selectedDate);
-  }
+  if (parsed.currentWeek?.weekStart) return parsed.currentWeek.weekStart;
+  if (parsed.selectedDate) return getWeekStartISO(parsed.selectedDate);
 
   const dates = Object.keys(parsed.dayRecords ?? {}).sort();
-
-  if (dates.length > 0) {
-    return getWeekStartISO(dates[0]);
-  }
+  if (dates.length > 0) return getWeekStartISO(dates[0]);
 
   return currentWeekStartISO;
 }
 
 function normaliseSavedProfile(parsed, currentWeekDates) {
-  if (parsed.schemaVersion >= 3 && parsed.dayRecords) {
-    return parsed;
-  }
+  if (parsed.schemaVersion >= 3 && parsed.dayRecords) return parsed;
 
   if (parsed.schemaVersion === 2 && parsed.dayRecords) {
     return {
@@ -214,49 +204,12 @@ function normaliseSavedProfile(parsed, currentWeekDates) {
     };
   }
 
-  if (parsed.schemaVersion === 1) {
-    const migratedDayRecords = createWeekRecords(currentWeekDates);
-    const selectedDay =
-      typeof parsed.selectedDay === "number"
-        ? parsed.selectedDay
-        : getTodayIndex(currentWeekDates);
-    const selectedDate = currentWeekDates[selectedDay] ?? currentWeekDates[0];
-    const migratedExerciseIds = parsed.dailyExerciseIds ?? defaultDailyExerciseIds;
-    const migratedStates = parsed.cardStates ?? {};
-
-    migratedDayRecords[selectedDate] = {
-      date: selectedDate,
-      weekStart: getWeekStartISO(selectedDate),
-      locked: false,
-      slots: migratedExerciseIds.map((exerciseId, index) => ({
-        slotId: `${selectedDate}-slot-${index + 1}`,
-        exerciseId,
-        originalExerciseId: defaultDailyExerciseIds[index] ?? exerciseId,
-        state: migratedStates[exerciseId] ?? "not_started",
-        swap: null,
-      })),
-    };
-
-    return {
-      schemaVersion: 3,
-      currentWeek: {
-        weekStart: currentWeekDates[0],
-        selectedDate,
-        editable: true,
-      },
-      selectedDate,
-      dayRecords: migratedDayRecords,
-      weeklySnapshots: {},
-    };
-  }
-
   return null;
 }
 
 function loadSavedProfile(currentWeekDates) {
   try {
     const savedProfile = window.localStorage.getItem(STORAGE_KEY);
-
     if (!savedProfile) return null;
 
     const parsed = JSON.parse(savedProfile);
@@ -293,7 +246,6 @@ function rolloverProfile(savedProfile, currentWeekDates) {
   while (cursor < currentWeekStartDate) {
     const weekStartISO = toISODate(cursor);
     const weekDates = getWeekDates(cursor);
-
     const hasAnyDayRecord = weekDates.some((date) => dayRecords[date]);
 
     if (!weeklySnapshots[weekStartISO]) {
@@ -347,7 +299,6 @@ function rolloverProfile(savedProfile, currentWeekDates) {
 
 function getSwapOptions(slot, currentSlots) {
   const currentExercise = findExercise(slot.exerciseId);
-
   if (!currentExercise) return [];
 
   return enrichedExerciseLibrary.filter(
@@ -365,10 +316,7 @@ function formatWeekLabel(snapshot) {
   const start = parseISODate(snapshot.weekStart);
   const end = parseISODate(snapshot.weekEnd);
 
-  const startLabel = start.toLocaleDateString("en-GB", {
-    day: "numeric",
-  });
-
+  const startLabel = start.toLocaleDateString("en-GB", { day: "numeric" });
   const endLabel = end.toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
@@ -379,7 +327,6 @@ function formatWeekLabel(snapshot) {
 
 function getMonthLabel(snapshot) {
   const start = parseISODate(snapshot.weekStart);
-
   return start.toLocaleDateString("en-GB", {
     month: "long",
     year: "numeric",
@@ -393,11 +340,7 @@ function groupSnapshotsByMonth(weeklySnapshots) {
 
   return snapshots.reduce((groups, snapshot) => {
     const label = getMonthLabel(snapshot);
-
-    if (!groups[label]) {
-      groups[label] = [];
-    }
-
+    if (!groups[label]) groups[label] = [];
     groups[label].push(snapshot);
     return groups;
   }, {});
@@ -419,7 +362,7 @@ function App() {
   });
 
   const [dayRecords, setDayRecords] = useState(initialProfile.dayRecords);
-  const [weeklySnapshots, setWeeklySnapshots] = useState(initialProfile.weeklySnapshots);
+  const [weeklySnapshots] = useState(initialProfile.weeklySnapshots);
   const [selectedSlotId, setSelectedSlotId] = useState(null);
 
   const selectedDate = currentWeekDates[selectedDay];
@@ -432,7 +375,6 @@ function App() {
   const dailyCards = selectedDayRecord.slots
     .map((slot) => {
       const exercise = findExercise(slot.exerciseId);
-
       if (!exercise) return null;
 
       return {
@@ -490,9 +432,7 @@ function App() {
     setDayRecords((currentRecords) => {
       const currentDayRecord = currentRecords[selectedDate];
 
-      if (!currentDayRecord || currentDayRecord.locked) {
-        return currentRecords;
-      }
+      if (!currentDayRecord || currentDayRecord.locked) return currentRecords;
 
       return {
         ...currentRecords,
@@ -523,16 +463,12 @@ function App() {
     setDayRecords((currentRecords) => {
       const currentDayRecord = currentRecords[selectedDate];
 
-      if (!currentDayRecord || currentDayRecord.locked) {
-        return currentRecords;
-      }
+      if (!currentDayRecord || currentDayRecord.locked) return currentRecords;
 
       const currentSlot = currentDayRecord.slots.find((slot) => slot.slotId === slotId);
-
       if (!currentSlot) return currentRecords;
 
       const swapOptions = getSwapOptions(currentSlot, currentDayRecord.slots);
-
       if (swapOptions.length <= 1) return currentRecords;
 
       const currentOptionIndex = swapOptions.findIndex(
@@ -623,9 +559,8 @@ function App() {
             </aside>
 
             <section className="daily-panel">
-              <div className="panel-heading">
-                <p className="eyebrow">Six gentle prompts</p>
-                <h2>Small enough to start</h2>
+              <div className="panel-heading exercise-heading">
+                <p className="eyebrow">Exercises</p>
               </div>
 
               <div className="cards-grid">

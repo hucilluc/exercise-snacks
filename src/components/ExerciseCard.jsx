@@ -1,11 +1,12 @@
 import { useState } from "react";
 
-const stateLabels = {
-  not_started: "Not started",
-  done: "Done",
-  tried: "Tried",
-  skip: "Skip",
-  not_suitable: "Not suitable",
+const contextIcons = {
+  "Getting up": "🌅",
+  Kitchen: "☕",
+  Outdoors: "🚶",
+  "Sitting break": "💺",
+  Daytime: "🕒",
+  Scheduled: "📅",
 };
 
 function PlaceholderIllustration() {
@@ -34,6 +35,7 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
   const currentState = state || "not_started";
   const dose = getCurrentDose(exercise);
   const showImage = exercise.imageSrc && !imageFailed;
+  const contextIcon = contextIcons[exercise.context] || "•";
 
   return (
     <article
@@ -46,6 +48,10 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
         onClick={() => onOpen(exercise.id)}
       >
         <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
+          <span className="context-icon" aria-label={exercise.context}>
+            {contextIcon}
+          </span>
+
           {showImage ? (
             <img
               src={exercise.imageSrc}
@@ -59,34 +65,38 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
         </div>
 
         <div className="compact-card-text">
-          <div className="compact-card-meta">
-            <span>{exercise.context}</span>
-            <span>{exercise.domainLabel}</span>
-          </div>
-
           <h3>{exercise.name}</h3>
           <p className="dose">{dose}</p>
-          <p className="state-line">{stateLabels[currentState]}</p>
+
+          <div className="compact-card-actions">
+            <button
+              className={`state-button quick-state ${
+                currentState === "done" ? "active" : ""
+              }`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSetState(exercise.id, "done");
+              }}
+            >
+              Done
+            </button>
+
+            <button
+              className={`state-button quick-state ${
+                currentState === "tried" ? "active" : ""
+              }`}
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onSetState(exercise.id, "tried");
+              }}
+            >
+              Tried
+            </button>
+          </div>
         </div>
       </button>
-
-      <div className="compact-card-actions">
-        <button
-          className={`state-button quick-state ${currentState === "done" ? "active" : ""}`}
-          type="button"
-          onClick={() => onSetState(exercise.id, "done")}
-        >
-          Done
-        </button>
-
-        <button
-          className={`state-button quick-state ${currentState === "tried" ? "active" : ""}`}
-          type="button"
-          onClick={() => onSetState(exercise.id, "tried")}
-        >
-          Tried
-        </button>
-      </div>
     </article>
   );
 }

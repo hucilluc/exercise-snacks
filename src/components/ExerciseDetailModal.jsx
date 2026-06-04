@@ -13,6 +13,15 @@ const stateButtons = [
   { state: "not_suitable", label: "Not suitable" },
 ];
 
+const contextIcons = {
+  "Getting up": "🌅",
+  Kitchen: "☕",
+  Outdoors: "🚶",
+  "Sitting break": "💺",
+  Daytime: "🕒",
+  Scheduled: "📅",
+};
+
 function getCurrentDose(exercise) {
   return (
     exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)?.displayText ||
@@ -35,6 +44,7 @@ export default function ExerciseDetailModal({
 
   const currentState = state || "not_started";
   const dose = getCurrentDose(exercise);
+  const contextIcon = contextIcons[exercise.context] || "•";
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
@@ -48,7 +58,9 @@ export default function ExerciseDetailModal({
         </button>
 
         <div className="modal-header">
-          <span className="context-badge">{exercise.context}</span>
+          <span className="context-badge">
+            {contextIcon} {exercise.context}
+          </span>
           <span className="domain-label">{exercise.domainLabel}</span>
         </div>
 

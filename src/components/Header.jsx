@@ -1,3 +1,5 @@
+const guidanceText = "Small enough to start.";
+
 export default function Header() {
   const today = new Date();
 
@@ -9,16 +11,10 @@ export default function Header() {
   });
 
   return (
-    <header className="app-header compact-header">
-      <div>
-        <p className="eyebrow">Body Bright</p>
-        <h1>Exercise snacks</h1>
-      </div>
-
-      <div className="current-date-block">
-        <p className="eyebrow">Today</p>
-        <h2>{formattedDate}</h2>
-      </div>
+    <header className="app-header mobile-v2-header">
+      <p className="app-kicker">Body Bright</p>
+      <p className="header-date">{formattedDate}</p>
+      <p className="guidance-line">{guidanceText}</p>
     </header>
   );
 }
