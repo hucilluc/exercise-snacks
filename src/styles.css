@@ -13,36 +13,78 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+
   background:
-    radial-gradient(circle at top left, rgba(34, 211, 238, 0.2), transparent 34rem),
-    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.18), transparent 30rem),
-    #070914;
+    radial-gradient(circle at 10% 15%, rgba(34, 211, 238, 0.42), transparent 30rem),
+    radial-gradient(circle at 92% 20%, rgba(59, 130, 246, 0.28), transparent 34rem),
+    radial-gradient(circle at 72% 82%, rgba(168, 85, 247, 0.34), transparent 36rem),
+    radial-gradient(circle at 22% 78%, rgba(34, 197, 94, 0.18), transparent 28rem),radial-gradient(circle at 8% 78%, rgba(34, 197, 94, 0.26) 0, rgba(34, 197, 94, 0.26) 90px, transparent 170px),
+    linear-gradient(135deg, #102033 0%, #0b1426 45%, #13243a 100%);
+}
+body::before,
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
 }
 
-button {
-  font: inherit;
+body::before {
+  background:
+    radial-gradient(circle at 8% 22%, rgba(34, 211, 238, 0.24) 0 5.2rem, transparent 5.8rem),
+    radial-gradient(circle at 19% 8%, rgba(34, 211, 238, 0.16) 0 2.4rem, transparent 2.9rem),
+    radial-gradient(circle at 92% 18%, rgba(0, 93, 255, 0.2) 0 5.8rem, transparent 6.4rem),
+    radial-gradient(circle at 84% 62%, rgba(138, 29, 255, 0.22) 0 5.5rem, transparent 6.2rem),
+    radial-gradient(circle at 13% 76%, rgba(255, 225, 0, 0.13) 0 3.4rem, transparent 4rem),
+    radial-gradient(circle at 74% 34%, rgba(255, 90, 31, 0.14) 0 2.8rem, transparent 3.4rem),
+    radial-gradient(circle at 50% 68%, rgba(30, 255, 60, 0.1) 0 3.8rem, transparent 4.5rem),
+    radial-gradient(circle at 45% 36%, rgba(24, 223, 240, 0.08) 0 4.5rem, transparent 5.2rem);
+  filter: blur(14px);
+  opacity: 0.95;
 }
+
+body::after {
+  background:
+    radial-gradient(circle at 4% 34%, rgba(24, 223, 240, 0.38) 0 0.5rem, transparent 0.7rem),
+    radial-gradient(circle at 15% 48%, rgba(0, 93, 255, 0.34) 0 0.65rem, transparent 0.85rem),
+    radial-gradient(circle at 28% 16%, rgba(255, 225, 0, 0.3) 0 0.48rem, transparent 0.68rem),
+    radial-gradient(circle at 37% 72%, rgba(34, 211, 238, 0.32) 0 0.6rem, transparent 0.82rem),
+    radial-gradient(circle at 48% 22%, rgba(138, 29, 255, 0.32) 0 0.68rem, transparent 0.9rem),
+    radial-gradient(circle at 55% 61%, rgba(24, 223, 240, 0.26) 0 0.5rem, transparent 0.72rem),
+    radial-gradient(circle at 66% 12%, rgba(255, 225, 0, 0.28) 0 0.5rem, transparent 0.7rem),
+    radial-gradient(circle at 73% 74%, rgba(30, 255, 60, 0.24) 0 0.55rem, transparent 0.78rem),
+    radial-gradient(circle at 82% 42%, rgba(168, 85, 247, 0.3) 0 0.7rem, transparent 0.95rem),
+    radial-gradient(circle at 92% 70%, rgba(34, 211, 238, 0.34) 0 0.6rem, transparent 0.82rem),
+    radial-gradient(circle at 96% 28%, rgba(255, 90, 31, 0.28) 0 0.52rem, transparent 0.74rem),
+    radial-gradient(circle at 32% 42%, rgba(34, 211, 238, 0.18) 0 1.1rem, transparent 1.45rem),
+    radial-gradient(circle at 58% 44%, rgba(138, 29, 255, 0.16) 0 1.4rem, transparent 1.85rem),
+    radial-gradient(circle at 68% 58%, rgba(255, 225, 0, 0.12) 0 1rem, transparent 1.4rem);
+  filter: blur(1.5px);
+  opacity: 0.78;
+}
+
 
 .app-shell {
+  position: relative;
+  z-index: 1;
   width: min(1220px, calc(100vw - 32px));
   margin: 0 auto;
   padding: 22px 0 48px;
 }
-
 .dashboard-shell {
   position: sticky;
   top: 0;
   z-index: 50;
   margin-bottom: 14px;
-  padding: 10px 0 12px;
-  background:
-    linear-gradient(
-      180deg,
-      rgba(7, 9, 20, 0.98) 0%,
-      rgba(7, 9, 20, 0.94) 78%,
-      rgba(7, 9, 20, 0) 100%
-    );
+  padding: 10px 14px 14px;
+
+  background: rgba(10, 18, 40, 0.26);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 24px;
+
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .app-header {
@@ -159,13 +201,16 @@ h2 {
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
 }
 
-.body-panel,
+..body-panel,
 .daily-panel {
   border: 1px solid rgba(203, 213, 225, 0.24);
   border-radius: 24px;
   background:
-    linear-gradient(145deg, rgba(34, 211, 238, 0.04), rgba(15, 23, 42, 0.86)),
-    rgba(15, 23, 42, 0.74);
+    linear-gradient(
+      145deg,
+      rgba(34, 211, 238, 0.04),
+      rgba(15, 23, 42, 0.56)
+    );
   box-shadow: 0 22px 70px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(20px);
 }
@@ -649,27 +694,15 @@ h2 {
     width: min(100vw - 14px, 720px);
     padding: 0 0 32px;
   }
-
-  .dashboard-shell {
-    padding: 8px 0 10px;
-  }
-
-  .app-header {
-    margin-bottom: 8px;
-  }
-
-  .app-kicker {
-    font-size: 2rem;
-  }
-
-  .header-date {
-    font-size: 0.9rem;
-  }
-
-  .guidance-line {
-    margin-top: 6px;
-    font-size: 0.88rem;
-  }
+.dashboard-shell {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin-bottom: 14px;
+  padding: 10px 0 12px;
+  background: transparent;
+  backdrop-filter: none;
+}
 
   .view-toggle {
     margin-bottom: 8px;
