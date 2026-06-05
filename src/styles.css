@@ -201,7 +201,7 @@ h2 {
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
 }
 
-..body-panel,
+.body-panel,
 .daily-panel {
   border: 1px solid rgba(203, 213, 225, 0.24);
   border-radius: 24px;
