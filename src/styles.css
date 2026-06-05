@@ -14,8 +14,8 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background:
-    radial-gradient(circle at top left, rgba(34, 211, 238, 0.22), transparent 34rem),
-    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.22), transparent 30rem),
+    radial-gradient(circle at top left, rgba(34, 211, 238, 0.2), transparent 34rem),
+    radial-gradient(circle at bottom right, rgba(168, 85, 247, 0.18), transparent 30rem),
     #070914;
 }
 
@@ -26,11 +26,27 @@ button {
 .app-shell {
   width: min(1220px, calc(100vw - 32px));
   margin: 0 auto;
-  padding: 28px 0 48px;
+  padding: 22px 0 48px;
+}
+
+.dashboard-shell {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  margin-bottom: 14px;
+  padding: 10px 0 12px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(7, 9, 20, 0.98) 0%,
+      rgba(7, 9, 20, 0.94) 78%,
+      rgba(7, 9, 20, 0) 100%
+    );
+  backdrop-filter: blur(18px);
 }
 
 .app-header {
-  margin-bottom: 18px;
+  margin-bottom: 12px;
 }
 
 .mobile-v2-header {
@@ -39,25 +55,25 @@ button {
 
 .app-kicker {
   margin: 0 0 5px;
-  color: #67e8f9;
-  font-size: clamp(2rem, 5vw, 3.6rem);
-  line-height: 0.95;
-  letter-spacing: -0.06em;
-  font-weight: 950;
-  text-transform: uppercase;
+  color: #e0faff;
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 4.5vw, 3.2rem);
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  font-weight: 650;
 }
 
 .header-date {
   margin: 0;
   color: #e0faff;
-  font-size: 1.05rem;
-  font-weight: 800;
+  font-size: 1.02rem;
+  font-weight: 750;
 }
 
 .guidance-line {
-  margin: 10px 0 0;
+  margin: 8px 0 0;
   color: #f8fafc;
-  font-size: 1rem;
+  font-size: 0.96rem;
   font-style: italic;
   line-height: 1.35;
 }
@@ -86,8 +102,8 @@ h2 {
   display: flex;
   gap: 8px;
   width: fit-content;
-  padding: 7px;
-  margin: 0 0 12px;
+  padding: 6px;
+  margin: 0 0 10px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.72);
@@ -97,14 +113,14 @@ h2 {
 .week-strip {
   display: flex;
   gap: 8px;
-  padding: 7px;
+  padding: 6px;
   border: 1px solid rgba(148, 163, 184, 0.22);
   border-radius: 999px;
   background: rgba(15, 23, 42, 0.72);
   backdrop-filter: blur(16px);
   overflow-x: auto;
   max-width: 100%;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .day-pill {
@@ -113,7 +129,7 @@ h2 {
   color: #cbd5e1;
   background: transparent;
   border-radius: 999px;
-  padding: 9px 12px;
+  padding: 8px 11px;
   cursor: pointer;
   white-space: nowrap;
 }
@@ -122,12 +138,12 @@ h2 {
   background: #22d3ee;
   color: #03131a;
   font-weight: 900;
-  box-shadow: 0 0 22px rgba(34, 211, 238, 0.48);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.44);
 }
 
 .day-pill.is-today:not(.active) {
   color: #e0faff;
-  outline: 1px solid rgba(34, 211, 238, 0.75);
+  outline: 1px solid rgba(34, 211, 238, 0.72);
 }
 
 .day-pill.is-today:not(.active)::after {
@@ -143,38 +159,31 @@ h2 {
   box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
 }
 
-.layout {
-  display: grid;
-  grid-template-columns: 330px 1fr;
-  gap: 18px;
-  align-items: start;
-}
-
 .body-panel,
 .daily-panel {
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  border-radius: 26px;
-  background: rgba(15, 23, 42, 0.76);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(203, 213, 225, 0.24);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(34, 211, 238, 0.04), rgba(15, 23, 42, 0.86)),
+    rgba(15, 23, 42, 0.74);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.25);
   backdrop-filter: blur(20px);
 }
 
 .body-panel {
-  position: sticky;
-  top: 16px;
-  padding: 18px;
+  padding: 13px;
 }
 
 .daily-panel {
-  padding: 18px;
+  padding: 16px;
 }
 
 .panel-heading {
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .exercise-heading {
-  margin-bottom: 12px;
+  margin-bottom: 10px;
 }
 
 .exercise-heading .eyebrow {
@@ -188,52 +197,52 @@ h2 {
 
 .compact-body-dashboard {
   display: grid;
-  grid-template-columns: minmax(90px, 0.82fr) minmax(150px, 1.18fr);
+  grid-template-columns: minmax(104px, 0.86fr) minmax(170px, 1.14fr);
   align-items: center;
-  gap: 14px;
+  gap: 22px;
 }
 
 .body-svg {
   display: block;
   width: 100%;
-  max-width: 210px;
+  max-width: 230px;
   margin: 0 auto;
   overflow: visible;
 }
 
 .symbolic-body {
-  max-width: 220px;
+  max-width: 235px;
 }
 
 .zone-list {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 7px;
+  gap: 4px;
+  align-self: center;
 }
 
 .zone-chip {
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 8px;
-  color: #94a3b8;
-  font-size: 0.83rem;
-  padding: 8px 9px;
-  border-radius: 13px;
-  background: rgba(15, 23, 42, 0.72);
+  gap: 9px;
+  color: #aebbd0;
+  font-size: 0.86rem;
+  padding: 3px 0;
+  background: transparent;
 }
 
 .zone-chip span {
-  width: 9px;
-  height: 9px;
+  width: 13px;
+  height: 13px;
   border-radius: 999px;
   background: var(--zone-color, #334155);
-  opacity: 0.5;
+  opacity: 0.8;
 }
 
 .zone-chip strong {
-  font-size: 0.83rem;
-  font-weight: 850;
+  font-size: 0.84rem;
+  font-weight: 800;
 }
 
 .zone-chip em {
@@ -244,13 +253,14 @@ h2 {
 }
 
 .zone-chip.lit {
-  color: #ecfeff;
-  background: rgba(34, 211, 238, 0.1);
+  color: #f8fafc;
 }
 
 .zone-chip.lit span {
   opacity: 1;
-  box-shadow: 0 0 14px var(--zone-color, #22d3ee);
+  box-shadow:
+    0 0 8px var(--zone-color, #22d3ee),
+    0 0 18px color-mix(in srgb, var(--zone-color, #22d3ee) 65%, transparent);
 }
 
 .cards-grid {
@@ -264,7 +274,12 @@ h2 {
   flex-direction: column;
   border: 1px solid rgba(148, 163, 184, 0.18);
   border-radius: 22px;
-  background: linear-gradient(145deg, rgba(30, 41, 59, 0.92), rgba(15, 23, 42, 0.92));
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--card-accent, #22d3ee) 7%, rgba(30, 41, 59, 0.92)),
+      color-mix(in srgb, var(--card-accent, #22d3ee) 4%, rgba(15, 23, 42, 0.94))
+    );
   transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
 }
 
@@ -294,7 +309,7 @@ h2 {
 
 .compact-card-main {
   display: grid;
-  grid-template-columns: auto 1fr;
+  grid-template-columns: auto 1fr auto;
   align-items: center;
   gap: 11px;
   width: 100%;
@@ -307,15 +322,14 @@ h2 {
 }
 
 .exercise-illustration {
-  position: relative;
   display: grid;
   place-items: center;
-  flex: 0 0 72px;
   width: 72px;
   height: 72px;
   border-radius: 18px;
-  background: rgba(34, 211, 238, 0.08);
-  border: 1px solid rgba(34, 211, 238, 0.2);
+  background:
+    linear-gradient(145deg, rgba(248, 250, 252, 0.09), rgba(148, 163, 184, 0.04));
+  border: 1px solid rgba(226, 232, 240, 0.14);
   overflow: hidden;
 }
 
@@ -327,7 +341,8 @@ h2 {
 }
 
 .exercise-illustration.has-image {
-  background: rgba(34, 211, 238, 0.045);
+  background:
+    linear-gradient(145deg, rgba(248, 250, 252, 0.1), rgba(148, 163, 184, 0.045));
 }
 
 .exercise-illustration svg {
@@ -345,20 +360,15 @@ h2 {
   stroke: none;
 }
 
-.context-icon {
-  position: absolute;
-  top: 4px;
-  left: 4px;
-  z-index: 2;
+.card-context-icon {
   display: grid;
   place-items: center;
-  min-width: 21px;
-  height: 21px;
-  padding: 0 3px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  background: rgba(2, 6, 23, 0.68);
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.32);
-  font-size: 0.8rem;
+  background: rgba(248, 250, 252, 0.08);
+  border: 1px solid rgba(226, 232, 240, 0.12);
+  font-size: 1.05rem;
 }
 
 .compact-card-text {
@@ -637,80 +647,77 @@ h2 {
 @media (max-width: 900px) {
   .app-shell {
     width: min(100vw - 14px, 720px);
-    padding: 12px 0 32px;
+    padding: 0 0 32px;
+  }
+
+  .dashboard-shell {
+    padding: 8px 0 10px;
   }
 
   .app-header {
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   .app-kicker {
-    font-size: 2.05rem;
+    font-size: 2rem;
   }
 
   .header-date {
-    font-size: 0.92rem;
-  }
-
-  .guidance-line {
-    margin-top: 7px;
     font-size: 0.9rem;
   }
 
+  .guidance-line {
+    margin-top: 6px;
+    font-size: 0.88rem;
+  }
+
   .view-toggle {
-    margin-bottom: 9px;
-    padding: 6px;
+    margin-bottom: 8px;
+    padding: 5px;
   }
 
   .day-pill {
-    padding: 8px 11px;
-    font-size: 0.88rem;
+    padding: 7px 10px;
+    font-size: 0.86rem;
   }
 
   .week-strip {
     gap: 6px;
-    padding: 6px;
-    margin-bottom: 10px;
-  }
-
-  .layout {
-    display: block;
+    padding: 5px;
+    margin-bottom: 8px;
   }
 
   .body-panel {
-    position: static;
-    margin-bottom: 10px;
-    padding: 10px;
-    border-radius: 20px;
+    padding: 9px 10px;
+    border-radius: 18px;
   }
 
   .compact-body-dashboard {
-    grid-template-columns: 86px 1fr;
-    gap: 10px;
+    grid-template-columns: 106px 1fr;
+    gap: 17px;
   }
 
   .body-svg {
-    max-width: 82px;
+    max-width: 104px;
   }
 
   .zone-list {
-    gap: 5px;
+    gap: 2px;
   }
 
   .zone-chip {
-    min-height: 24px;
-    padding: 4px 7px;
-    border-radius: 9px;
+    min-height: 19px;
+    padding: 1px 0;
     font-size: 0.68rem;
   }
 
   .zone-chip span {
-    width: 7px;
-    height: 7px;
+    width: 11px;
+    height: 11px;
   }
 
   .zone-chip strong {
-    font-size: 0.68rem;
+    font-size: 0.69rem;
   }
 
   .zone-chip em {
@@ -742,7 +749,6 @@ h2 {
   }
 
   .compact-card-main {
-    grid-template-columns: auto 1fr;
     gap: 9px;
   }
 
@@ -757,12 +763,10 @@ h2 {
     height: 55px;
   }
 
-  .context-icon {
-    top: 2px;
-    left: 2px;
-    min-width: 18px;
-    height: 18px;
-    font-size: 0.68rem;
+  .card-context-icon {
+    width: 31px;
+    height: 31px;
+    font-size: 1rem;
   }
 
   .compact-exercise-card h3 {

@@ -23,7 +23,8 @@ function PlaceholderIllustration() {
 
 function getCurrentDose(exercise) {
   return (
-    exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)?.displayText ||
+    exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)
+      ?.displayText ||
     exercise.dose ||
     ""
   );
@@ -48,10 +49,6 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
         onClick={() => onOpen(exercise.id)}
       >
         <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
-          <span className="context-icon" aria-label={exercise.context}>
-            {contextIcon}
-          </span>
-
           {showImage ? (
             <img
               src={exercise.imageSrc}
@@ -96,6 +93,10 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
             </button>
           </div>
         </div>
+
+        <span className="card-context-icon" aria-label={exercise.context}>
+          {contextIcon}
+        </span>
       </button>
     </article>
   );

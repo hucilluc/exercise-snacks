@@ -503,81 +503,83 @@ function App() {
 
   return (
     <main className="app-shell">
-      <Header />
+      <section className="dashboard-shell">
+        <Header />
 
-      <div className="view-toggle" aria-label="App section">
-        <button
-          className={`day-pill ${view === "today" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setView("today");
-            setSelectedDay(todayIndex);
-            setSelectedSlotId(null);
-          }}
-        >
-          Today
-        </button>
+        <div className="view-toggle" aria-label="App section">
+          <button
+            className={`day-pill ${view === "today" ? "active" : ""}`}
+            type="button"
+            onClick={() => {
+              setView("today");
+              setSelectedDay(todayIndex);
+              setSelectedSlotId(null);
+            }}
+          >
+            Today
+          </button>
 
-        <button
-          className={`day-pill ${view === "history" ? "active" : ""}`}
-          type="button"
-          onClick={() => {
-            setView("history");
-            setSelectedSlotId(null);
-          }}
-        >
-          History
-        </button>
-      </div>
+          <button
+            className={`day-pill ${view === "history" ? "active" : ""}`}
+            type="button"
+            onClick={() => {
+              setView("history");
+              setSelectedSlotId(null);
+            }}
+          >
+            History
+          </button>
+        </div>
 
-      {view === "today" ? (
-        <>
-          <div className="week-strip" aria-label="Select day">
-            {days.map((day, index) => (
-              <button
-                className={`day-pill ${selectedDay === index ? "active" : ""} ${
-                  todayIndex === index ? "is-today" : ""
-                }`}
-                key={day}
-                type="button"
-                onClick={() => {
-                  setSelectedDay(index);
-                  setSelectedSlotId(null);
-                }}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
+        {view === "today" && (
+          <>
+            <div className="week-strip" aria-label="Select day">
+              {days.map((day, index) => (
+                <button
+                  className={`day-pill ${selectedDay === index ? "active" : ""} ${
+                    todayIndex === index ? "is-today" : ""
+                  }`}
+                  key={day}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDay(index);
+                    setSelectedSlotId(null);
+                  }}
+                >
+                  {day}
+                </button>
+              ))}
+            </div>
 
-          <section className="layout">
             <aside className="body-panel" aria-label="Body Bright weekly progress">
               <BodyBrightFigure
                 zoneScores={zoneScores}
                 weeklyTarget={bodyBright.weeklyTarget}
               />
             </aside>
+          </>
+        )}
+      </section>
 
-            <section className="daily-panel">
-              <div className="panel-heading exercise-heading">
-                <p className="eyebrow">Exercises</p>
-              </div>
+      {view === "today" ? (
+        <section className="daily-panel">
+          <div className="panel-heading exercise-heading">
+            <p className="eyebrow">Exercises</p>
+          </div>
 
-              <div className="cards-grid">
-                {dailyCards.map((exercise) => (
-                  <ExerciseCard
-                    exercise={exercise}
-                    key={exercise.slotId}
-                    state={exercise.state}
-                    onSetState={handleSetState}
-                    onOpen={handleOpenExercise}
-                    onSwap={handleSwapExercise}
-                  />
-                ))}
-              </div>
-            </section>
-          </section>
-        </>
+          <div className="cards-grid">
+            {dailyCards.map((exercise) => (
+              <ExerciseCard
+                exercise={exercise}
+                key={exercise.slotId}
+                state={exercise.state}
+                onSetState={handleSetState}
+                onOpen={handleOpenExercise}
+                onSwap={handleSwapExercise}
+              />
+            ))}
+          </div>
+        </section>
       ) : (
         <section className="history-panel">
           <div className="panel-heading">
