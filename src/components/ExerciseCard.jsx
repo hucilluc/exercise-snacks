@@ -1,12 +1,13 @@
 import { useState } from "react";
+import { contextLabel } from "../storage";
 
 const contextIcons = {
-  "Getting up": "🌅",
-  Kitchen: "☕",
-  Outdoors: "🚶",
-  "Sitting break": "💺",
-  Daytime: "🕒",
-  Scheduled: "📅",
+  getting_up: "🌅",
+  kitchen: "☕",
+  outdoors: "🚶",
+  sitting_break: "💺",
+  daytime: "🕒",
+  scheduled: "📅",
 };
 
 function PlaceholderIllustration() {
@@ -21,37 +22,34 @@ function PlaceholderIllustration() {
   );
 }
 
-function getCurrentDose(exercise) {
-  return (
-    exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)
-      ?.displayText ||
-    exercise.dose ||
-    ""
-  );
-}
-
-export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
+export default function ExerciseCard({
+  card,
+  exercise,
+  zoneColor,
+  onSetState,
+  onOpen,
+}) {
   const [imageFailed, setImageFailed] = useState(false);
 
-  const currentState = state || "not_started";
-  const dose = getCurrentDose(exercise);
-  const showImage = exercise.imageSrc && !imageFailed;
-  const contextIcon = contextIcons[exercise.context] || "•";
+  const imageSrc = `/images/${exercise.illustrationId}.png`;
+  const showImage = !imageFailed;
+  const dose = card.dosePresented?.displayText ?? "";
+  const contextIcon = contextIcons[card.contextPresented] || "•";
 
   return (
     <article
-      className={`exercise-card compact-exercise-card ${currentState}`}
-      style={{ "--card-accent": exercise.zoneColor || "#22d3ee" }}
+      className={`exercise-card compact-exercise-card ${card.state}`}
+      style={{ "--card-accent": zoneColor || "#22d3ee" }}
     >
       <button
         className="compact-card-main"
         type="button"
-        onClick={() => onOpen(exercise.id)}
+        onClick={() => onOpen(card.cardId)}
       >
         <div className={`exercise-illustration ${showImage ? "has-image" : ""}`}>
           {showImage ? (
             <img
-              src={exercise.imageSrc}
+              src={imageSrc}
               alt=""
               aria-hidden="true"
               onError={() => setImageFailed(true)}
@@ -62,18 +60,18 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
         </div>
 
         <div className="compact-card-text">
-          <h3>{exercise.name}</h3>
+          <h3>{card.exerciseNamePresented}</h3>
           <p className="dose">{dose}</p>
 
           <div className="compact-card-actions">
             <button
               className={`state-button quick-state ${
-                currentState === "done" ? "active" : ""
+                card.state === "done" ? "active" : ""
               }`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                onSetState(exercise.id, "done");
+                onSetState(card.cardId, "done");
               }}
             >
               Done
@@ -81,12 +79,12 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
 
             <button
               className={`state-button quick-state ${
-                currentState === "tried" ? "active" : ""
+                card.state === "tried" ? "active" : ""
               }`}
               type="button"
               onClick={(event) => {
                 event.stopPropagation();
-                onSetState(exercise.id, "tried");
+                onSetState(card.cardId, "tried");
               }}
             >
               Tried
@@ -94,7 +92,10 @@ export default function ExerciseCard({ exercise, state, onSetState, onOpen }) {
           </div>
         </div>
 
-        <span className="card-context-icon" aria-label={exercise.context}>
+        <span
+          className="card-context-icon"
+          aria-label={contextLabel(card.contextPresented)}
+        >
           {contextIcon}
         </span>
       </button>

@@ -1,3 +1,6 @@
+import { domainLabels } from "../data/bodyBright";
+import { contextLabel } from "../storage";
+
 const stateLabels = {
   not_started: "Not started",
   done: "Done",
@@ -14,43 +17,40 @@ const stateButtons = [
 ];
 
 const contextIcons = {
-  "Getting up": "🌅",
-  Kitchen: "☕",
-  Outdoors: "🚶",
-  "Sitting break": "💺",
-  Daytime: "🕒",
-  Scheduled: "📅",
+  getting_up: "🌅",
+  kitchen: "☕",
+  outdoors: "🚶",
+  sitting_break: "💺",
+  daytime: "🕒",
+  scheduled: "📅",
 };
 
-function getCurrentDose(exercise) {
-  return (
-    exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)?.displayText ||
-    exercise.dose ||
-    ""
-  );
+function formatTag(tag) {
+  return tag.replaceAll("_", " ");
 }
 
 export default function ExerciseDetailModal({
+  card,
   exercise,
   isOpen,
-  state,
+  zoneColor,
   onSetState,
+  onSetNote,
   onSwap,
   onClose,
 }) {
-  if (!isOpen || !exercise) {
+  if (!isOpen || !card || !exercise) {
     return null;
   }
 
-  const currentState = state || "not_started";
-  const dose = getCurrentDose(exercise);
-  const contextIcon = contextIcons[exercise.context] || "•";
+  const dose = card.dosePresented?.displayText ?? "";
+  const contextIcon = contextIcons[card.contextPresented] || "•";
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
         className="exercise-modal"
-        style={{ "--card-accent": exercise.zoneColor || "#22d3ee" }}
+        style={{ "--card-accent": zoneColor || "#22d3ee" }}
         onClick={(event) => event.stopPropagation()}
       >
         <button className="modal-close" type="button" onClick={onClose}>
@@ -59,29 +59,35 @@ export default function ExerciseDetailModal({
 
         <div className="modal-header">
           <span className="context-badge">
-            {contextIcon} {exercise.context}
+            {contextIcon} {contextLabel(card.contextPresented)}
           </span>
-          <span className="domain-label">{exercise.domainLabel}</span>
+          <span className="domain-label">
+            {domainLabels[card.domainPresented]}
+          </span>
         </div>
 
-        <h2>{exercise.name}</h2>
+        <h2>{card.exerciseNamePresented}</h2>
 
         <div className="modal-image">
-          <img src={exercise.imageSrc} alt="" aria-hidden="true" />
+          <img
+            src={`/images/${exercise.illustrationId}.png`}
+            alt=""
+            aria-hidden="true"
+          />
         </div>
 
         <div className="modal-state-panel">
-          <p>State: {stateLabels[currentState]}</p>
+          <p>State: {stateLabels[card.state]}</p>
 
           <div className="state-buttons modal-state-buttons">
             {stateButtons.map((button) => (
               <button
                 className={`state-button ${
-                  currentState === button.state ? "active" : ""
+                  card.state === button.state ? "active" : ""
                 }`}
                 key={button.state}
                 type="button"
-                onClick={() => onSetState(exercise.id, button.state)}
+                onClick={() => onSetState(card.cardId, button.state)}
               >
                 {button.label}
               </button>
@@ -91,7 +97,7 @@ export default function ExerciseDetailModal({
           <button
             className="secondary-button modal-swap-button"
             type="button"
-            onClick={() => onSwap(exercise.id)}
+            onClick={() => onSwap(card.cardId)}
           >
             Swap exercise
           </button>
@@ -108,10 +114,21 @@ export default function ExerciseDetailModal({
         </div>
 
         <div className="modal-section">
+          <h3>Note</h3>
+          <textarea
+            className="card-note-field"
+            placeholder="Optional — how did it go? e.g. too tired for the full walk"
+            rows={3}
+            value={card.note ?? ""}
+            onChange={(event) => onSetNote(card.cardId, event.target.value)}
+          />
+        </div>
+
+        <div className="modal-section">
           <h3>Tags</h3>
           <div className="tag-row">
-            {exercise.tags.map((tag) => (
-              <span key={tag}>{tag}</span>
+            {exercise.functionalTags.map((tag) => (
+              <span key={tag}>{formatTag(tag)}</span>
             ))}
           </div>
         </div>
