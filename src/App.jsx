@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Header from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
@@ -13,7 +13,10 @@ import {
   swapAlternatives,
 } from "./recommendationEngine";
 import {
+  applyImportedProfile,
   dayNames,
+  exportFilename,
+  exportProfileJSON,
   getMonday,
   getTodayIndex,
   getWeekDates,
@@ -22,6 +25,7 @@ import {
   saveProfile,
   toISODate,
 } from "./storage";
+import { validateProfile } from "./profileValidation";
 import "./styles.css";
 
 function formatWeekLabel(snapshot) {
@@ -64,6 +68,11 @@ function App() {
   const [profile, setProfile] = useState(() => loadProfile(currentWeekDates));
   const [view, setView] = useState("today");
   const [selectedCardId, setSelectedCardId] = useState(null);
+
+  const fileInputRef = useRef(null);
+  const [pendingImport, setPendingImport] = useState(null);
+  const [allowProtected, setAllowProtected] = useState(false);
+  const [importStatus, setImportStatus] = useState(null);
 
   const selectedDate = currentWeekDates.includes(
     profile.currentWeek.selectedDate
@@ -195,6 +204,65 @@ function App() {
     }));
   }
 
+  function handleExport() {
+    const blob = new Blob([exportProfileJSON(profile)], {
+      type: "application/json",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = exportFilename();
+    link.click();
+    URL.revokeObjectURL(url);
+    setImportStatus({ kind: "ok", text: "Profile exported." });
+  }
+
+  async function handleImportFile(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setImportStatus(null);
+    setAllowProtected(false);
+
+    let parsed;
+    try {
+      parsed = JSON.parse(await file.text());
+    } catch {
+      setPendingImport(null);
+      setImportStatus({ kind: "error", text: "That file is not valid JSON." });
+      return;
+    }
+
+    setPendingImport({
+      fileName: file.name,
+      parsed,
+      result: validateProfile(parsed, profile),
+    });
+  }
+
+  function handleConfirmImport() {
+    if (!pendingImport) return;
+    const { result, parsed } = pendingImport;
+    if (result.errors.length > 0) return;
+    if (result.protectedChanges.length > 0 && !allowProtected) return;
+
+    const imported = applyImportedProfile(parsed, currentWeekDates);
+    setProfile(imported);
+    setPendingImport(null);
+    setAllowProtected(false);
+    setSelectedCardId(null);
+    setImportStatus({
+      kind: "ok",
+      text: "Profile imported. A backup of your previous data was kept.",
+    });
+  }
+
+  function handleCancelImport() {
+    setPendingImport(null);
+    setAllowProtected(false);
+  }
+
   function handleSwap(cardId) {
     const card = dayCards.find((c) => c.cardId === cardId);
     if (!card) return;
@@ -257,6 +325,17 @@ function App() {
           >
             History
           </button>
+
+          <button
+            className={`day-pill ${view === "data" ? "active" : ""}`}
+            type="button"
+            onClick={() => {
+              setView("data");
+              setSelectedCardId(null);
+            }}
+          >
+            Data
+          </button>
         </div>
 
         {view === "today" && (
@@ -286,7 +365,134 @@ function App() {
         )}
       </section>
 
-      {view === "today" ? (
+      {view === "data" && (
+        <section className="daily-panel data-panel">
+          <div className="panel-heading">
+            <p className="eyebrow">Your profile</p>
+            <h2>Export &amp; Import</h2>
+          </div>
+
+          <p className="data-intro">
+            Your complete profile — exercise library, daily history, notes and
+            weekly snapshots — lives in this browser as a single file you can
+            export at any time. Use it as a backup, to move to another device,
+            or to review your progress with an LLM: the file carries its own
+            review instructions, and after discussing changes you can import a
+            deliberately revised copy here.
+          </p>
+
+          <div className="data-actions">
+            <button className="secondary-button" type="button" onClick={handleExport}>
+              Export profile
+            </button>
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              Import profile…
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json,application/json"
+              style={{ display: "none" }}
+              onChange={handleImportFile}
+            />
+          </div>
+
+          {importStatus && (
+            <p className={`import-status ${importStatus.kind}`}>
+              {importStatus.text}
+            </p>
+          )}
+
+          {pendingImport && (
+            <div className="import-preview">
+              <h3>Import {pendingImport.fileName}</h3>
+
+              {pendingImport.result.errors.length > 0 ? (
+                <>
+                  <p className="import-status error">
+                    This file can't be imported:
+                  </p>
+                  <ul className="import-list error">
+                    {pendingImport.result.errors.map((err) => (
+                      <li key={err}>{err}</li>
+                    ))}
+                  </ul>
+                </>
+              ) : (
+                <>
+                  {pendingImport.result.summary && (
+                    <p className="import-summary">
+                      {pendingImport.result.summary.profileName} — last updated{" "}
+                      {pendingImport.result.summary.lastUpdated}.{" "}
+                      {pendingImport.result.summary.dayCount} days,{" "}
+                      {pendingImport.result.summary.snapshotCount} weekly
+                      snapshots, {pendingImport.result.summary.libraryCount}{" "}
+                      library exercises.
+                    </p>
+                  )}
+
+                  {pendingImport.result.warnings.length > 0 && (
+                    <ul className="import-list warning">
+                      {pendingImport.result.warnings.map((w) => (
+                        <li key={w}>{w}</li>
+                      ))}
+                    </ul>
+                  )}
+
+                  {pendingImport.result.protectedChanges.length > 0 && (
+                    <div className="protected-notice">
+                      <p>
+                        ⚠ This file changes protected sections:{" "}
+                        <strong>
+                          {pendingImport.result.protectedChanges.join(", ")}
+                        </strong>
+                        . The review guidance and LLM permissions normally may
+                        not be altered by an imported file.
+                      </p>
+                      <label className="protected-allow">
+                        <input
+                          type="checkbox"
+                          checked={allowProtected}
+                          onChange={(e) => setAllowProtected(e.target.checked)}
+                        />
+                        I made this change deliberately — allow it
+                      </label>
+                    </div>
+                  )}
+                </>
+              )}
+
+              <div className="import-actions">
+                <button
+                  className="state-button"
+                  type="button"
+                  disabled={
+                    pendingImport.result.errors.length > 0 ||
+                    (pendingImport.result.protectedChanges.length > 0 &&
+                      !allowProtected)
+                  }
+                  onClick={handleConfirmImport}
+                >
+                  Import
+                </button>
+                <button
+                  className="state-button"
+                  type="button"
+                  onClick={handleCancelImport}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
+
+      {view === "today" && (
         <section className="daily-panel">
           <div className="panel-heading exercise-heading">
             <p className="eyebrow">Exercises</p>
@@ -310,7 +516,9 @@ function App() {
             })}
           </div>
         </section>
-      ) : (
+      )}
+
+      {view === "history" && (
         <section className="history-panel">
           <div className="panel-heading">
             <p className="eyebrow">Weekly snapshots</p>

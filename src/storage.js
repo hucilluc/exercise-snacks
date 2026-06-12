@@ -24,6 +24,7 @@ import {
 import { generateWeek, generatorVersion } from "./recommendationEngine.js";
 
 export const STORAGE_KEY = "bodyBrightProfile_v4";
+export const BACKUP_KEY = "bodyBrightProfile_v4_backup";
 export const SCHEMA_VERSION = 4;
 
 export const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -423,6 +424,39 @@ export function saveProfile(profile) {
   };
 
   window.localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
+}
+
+// ── Export / import ──────────────────────────────────────────────────────
+
+export function exportFilename() {
+  return `body-bright-profile-${toISODate(new Date())}.json`;
+}
+
+export function exportProfileJSON(profile) {
+  return JSON.stringify(
+    {
+      ...profile,
+      aboutThisProfile: {
+        ...profile.aboutThisProfile,
+        lastUpdated: new Date().toISOString(),
+      },
+    },
+    null,
+    2
+  );
+}
+
+// Apply a validated imported profile: stash the current profile under the
+// one-deep backup key, write the import, then run the normal load pipeline
+// so rollover/migration treat an old export exactly like reopening the app
+// after time away.
+export function applyImportedProfile(parsed, currentWeekDates) {
+  const current = window.localStorage.getItem(STORAGE_KEY);
+  if (current) {
+    window.localStorage.setItem(BACKUP_KEY, current);
+  }
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+  return loadProfile(currentWeekDates);
 }
 
 // ── Display helpers ──────────────────────────────────────────────────────
