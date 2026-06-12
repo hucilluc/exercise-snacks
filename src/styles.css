@@ -385,6 +385,7 @@ h2 {
   width: 68px;
   height: 68px;
   object-fit: contain;
+  transform: scale(1.2);
 }
 
 .exercise-illustration.has-image {
@@ -415,7 +416,7 @@ h2 {
   border-radius: 999px;
   background: rgba(248, 250, 252, 0.08);
   border: 1px solid rgba(226, 232, 240, 0.12);
-  font-size: 1.05rem;
+  font-size: 1.3rem;
 }
 
 .compact-card-text {
@@ -586,6 +587,9 @@ h2 {
   width: min(360px, 85%);
   height: 260px;
   object-fit: contain;
+  /* The PNGs carry transparent padding; scaling enlarges the artwork
+     without touching the layout box. */
+  transform: scale(1.4);
 }
 
 .modal-state-panel {
@@ -801,7 +805,7 @@ h2 {
   .card-context-icon {
     width: 31px;
     height: 31px;
-    font-size: 1rem;
+    font-size: 1.2rem;
   }
 
   .compact-exercise-card h3 {
