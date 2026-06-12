@@ -1,16 +1,37 @@
-# React + Vite
+# Body Bright
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A gentle daily movement app built around exercise snacks and the Body Bright
+figure.
 
-Currently, two official plugins are available:
+Each day offers six small movement suggestions — one per domain (cardio &
+circulation, strength, core & posture, balance & stability, mobility &
+recovery, rehab) — arranged as a practical sequence through the day. Marking
+them Done or Tried brightens the matching zone of the Body Bright figure
+across the week. No streaks, no scores, no accounts: a dimmer week is not a
+failure.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Local-first: all data lives in the browser's localStorage as a single
+portable profile capsule designed for export, LLM-assisted review, and
+re-import.
 
-## React Compiler
+## Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```sh
+npm install
+npm run dev      # local dev server
+npm run build    # production build (deployed via Netlify)
+npm run lint
+```
 
-## Expanding the ESLint configuration
+Exercise illustrations are generated from
+`scripts/generate-illustrations.mjs` into `public/images/`, one transparent
+PNG per exercise id. Any image can be replaced by a same-named file without
+code changes. To regenerate:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```sh
+npm i --no-save sharp
+node scripts/generate-illustrations.mjs
+```
+
+Note: the GitHub repository keeps its original name (`exercise-snacks`)
+because the Netlify deployment is linked to it.
