@@ -120,6 +120,25 @@ export function recentUseCounts(days, beforeDate, lookbackDays = 14) {
   return counts;
 }
 
+// Count recent "skip" outcomes per exercise — the signal behind the mild
+// temporary down-ranking (spec §7). Same observation-reading approach as
+// recentUseCounts: derived from saved days, nothing extra stored.
+export function recentSkipCounts(days, beforeDate, lookbackDays = 14) {
+  const counts = {};
+  const dates = Object.keys(days).filter((date) => date < beforeDate).sort();
+  const recent = dates.slice(-lookbackDays);
+
+  recent.forEach((date) => {
+    days[date].cards.forEach((card) => {
+      if (card.state === "skip") {
+        counts[card.exerciseId] = (counts[card.exerciseId] ?? 0) + 1;
+      }
+    });
+  });
+
+  return counts;
+}
+
 function exerciseIdsOnDay(day) {
   return day ? day.cards.map((card) => card.exerciseId) : [];
 }
@@ -143,6 +162,10 @@ function scoreCandidate(exercise, targetContext, env) {
   }
 
   score -= (env.recentUse[exercise.id] ?? 0) * 0.4;
+
+  // Mild temporary down-rank for recently skipped exercises: capped well
+  // below a context fit (+6) so a skip nudges rather than exiles.
+  score -= Math.min(env.recentSkips?.[exercise.id] ?? 0, 3) * 1.5;
 
   // Strong enough to outweigh frequency boosts but not a perfect context
   // fit on its own, so Saturdays bend gentle without breaking the day.
@@ -201,6 +224,7 @@ function generateDay({
   settings,
   weekUse,
   recentUse,
+  recentSkips,
   yesterdayIds,
   reservedSlots = [],
 }) {
@@ -209,6 +233,7 @@ function generateDay({
     date,
     weekUse,
     recentUse,
+    recentSkips,
     yesterdayIds,
     isSaturday: wk === "sat",
     saturdayLightness: settings.saturdayLightness !== false,
@@ -352,6 +377,7 @@ export function generateWeek({
 }) {
   const weekStart = weekDates[0];
   const recentUse = recentUseCounts(priorDays, weekStart);
+  const recentSkips = recentSkipCounts(priorDays, weekStart);
 
   // Anchor activities (settings.weeklyAnchors) reserve their domain slots,
   // merged with any explicitly passed reservations.
@@ -403,6 +429,7 @@ export function generateWeek({
         settings,
         weekUse,
         recentUse,
+        recentSkips,
         yesterdayIds,
         reservedSlots: reservedFor(date),
       }),
@@ -418,7 +445,13 @@ export function generateWeek({
 // Ranked same-domain alternatives for a card (spec §8). One mechanism for
 // every slot: walks, snacks and (in Phase 2) anchors alike. The domain is
 // preserved so Body Bright scoring keeps one credit per domain per day.
-export function swapAlternatives(card, dayCards, library, recentUse = {}) {
+export function swapAlternatives(
+  card,
+  dayCards,
+  library,
+  recentUse = {},
+  recentSkips = {}
+) {
   const usedToday = new Set(
     dayCards
       .filter((other) => other.cardId !== card.cardId)
@@ -441,6 +474,9 @@ export function swapAlternatives(card, dayCards, library, recentUse = {}) {
       if (currentExercise && exercise.intensity === currentExercise.intensity)
         rank += 2;
       rank -= (recentUse[exercise.id] ?? 0) * 0.5;
+      // Half-strength skip down-rank: skipped exercises drift down the
+      // alternatives list without disappearing from it.
+      rank -= Math.min(recentSkips[exercise.id] ?? 0, 3) * 0.75;
       // Bias against immediately swapping back to what was just swapped away.
       if (card.swap?.fromExerciseId === exercise.id) rank -= 3;
       return { exercise, rank };
@@ -470,6 +506,49 @@ function previousDateISO(isoDate) {
   const mm = String(prev.getMonth() + 1).padStart(2, "0");
   const dd = String(prev.getDate()).padStart(2, "0");
   return `${prev.getFullYear()}-${mm}-${dd}`;
+}
+
+// Choose a same-domain replacement for a vacated card, scored against the
+// week as it currently stands. Shared by cross-day moves and the
+// not-suitable sweep. Returns null when the domain has no other option.
+function chooseBackfill(workingDays, date, vacatedCard, library, settings) {
+  const weekStart = workingDays[date].weekStart;
+  const recentUse = recentUseCounts(workingDays, weekStart);
+  const recentSkips = recentSkipCounts(workingDays, weekStart);
+  const wk = weekdayKey(date);
+
+  const env = {
+    date,
+    weekUse: weekUseCounts(workingDays, weekStart),
+    recentUse,
+    recentSkips,
+    yesterdayIds: new Set(exerciseIdsOnDay(workingDays[previousDateISO(date)])),
+    isSaturday: wk === "sat",
+    saturdayLightness: settings.saturdayLightness !== false,
+    tomorrowFixedWalkId: settings.walkPlacement?.[weekdayKey(date, 1)] ?? null,
+  };
+
+  const usedOnDay = new Set(workingDays[date].cards.map((c) => c.exerciseId));
+  const pool = library.filter(
+    (e) =>
+      e.status === "active" &&
+      e.domain === vacatedCard.domainPresented &&
+      e.id !== vacatedCard.exerciseId &&
+      !usedOnDay.has(e.id)
+  );
+
+  const targetContext =
+    vacatedCard.contextPresented === "scheduled"
+      ? "daytime"
+      : vacatedCard.contextPresented;
+  const replacement = bestCandidate(pool, targetContext, env).exercise;
+  if (!replacement) return null;
+
+  const context = replacement.contexts.includes(targetContext)
+    ? targetContext
+    : replacement.contexts[0];
+
+  return { replacement, context };
 }
 
 // Move a card — or, for scheduled anchors, the whole activity's cards as a
@@ -534,50 +613,19 @@ export function moveCards(days, fromDate, cardId, toDate, library, settings) {
     },
   };
 
-  const weekStart = fromDay.weekStart;
-  const recentUse = recentUseCounts(days, weekStart);
-  const active = library.filter((e) => e.status === "active");
-  const wk = weekdayKey(fromDate);
-  const yesterdayIds = new Set(
-    exerciseIdsOnDay(working[previousDateISO(fromDate)])
-  );
-
   const newFromCards = fromDay.cards.map((vacated) => {
     if (!unit.includes(vacated)) return vacated;
 
-    const weekUse = weekUseCounts(working, weekStart);
-    const env = {
-      date: fromDate,
-      weekUse,
-      recentUse,
-      yesterdayIds,
-      isSaturday: wk === "sat",
-      saturdayLightness: settings.saturdayLightness !== false,
-      tomorrowFixedWalkId:
-        settings.walkPlacement?.[weekdayKey(fromDate, 1)] ?? null,
-    };
-
-    const usedOnDay = new Set(
-      working[fromDate].cards.map((c) => c.exerciseId)
-    );
-    const pool = active.filter(
-      (e) =>
-        e.domain === vacated.domainPresented &&
-        e.id !== vacated.exerciseId &&
-        !usedOnDay.has(e.id)
-    );
-
-    const targetContext =
-      vacated.contextPresented === "scheduled"
-        ? "daytime"
-        : vacated.contextPresented;
+    const chosen = chooseBackfill(working, fromDate, vacated, library, settings);
+    // A move must leave the day complete: if the domain has no other
+    // option, the moved exercise also stays in its source slot.
     const replacement =
-      bestCandidate(pool, targetContext, env).exercise ??
-      library.find((e) => e.id === vacated.exerciseId);
-
-    const context = replacement.contexts.includes(targetContext)
-      ? targetContext
-      : replacement.contexts[0];
+      chosen?.replacement ?? library.find((e) => e.id === vacated.exerciseId);
+    const context =
+      chosen?.context ??
+      (replacement.contexts.includes(vacated.contextPresented)
+        ? vacated.contextPresented
+        : replacement.contexts[0]);
 
     const backfill = {
       ...buildCard(fromDate, vacated.slotIndex, replacement, context),
@@ -604,4 +652,107 @@ export function moveCards(days, fromDate, cardId, toDate, library, settings) {
     [fromDate]: { ...fromDay, cards: newFromCards },
     [toDate]: { ...toDay, cards: newToCards },
   };
+}
+
+// ── Suitability (spec §7) ────────────────────────────────────────────────
+
+// Mark a card not suitable: the card keeps its place with state
+// "not_suitable", the exercise's library status flips to "needs_review"
+// (dropping it from future generation and swap), and untouched copies of
+// the exercise on today/future days of the same week are backfilled with
+// alternatives. Past days and anything the user has acted on stay as they
+// are. Returns { days, library }.
+export function markNotSuitable(
+  days,
+  library,
+  date,
+  cardId,
+  settings,
+  todayISO
+) {
+  const day = days[date];
+  const card = day?.cards.find((c) => c.cardId === cardId);
+  if (!day || day.locked || !card) return { days, library };
+
+  const exerciseId = card.exerciseId;
+  const swappedAt = new Date().toISOString();
+
+  const newLibrary = library.map((exercise) =>
+    exercise.id === exerciseId && exercise.status === "active"
+      ? { ...exercise, status: "needs_review" }
+      : exercise
+  );
+
+  const working = {
+    ...days,
+    [date]: {
+      ...day,
+      cards: day.cards.map((c) =>
+        c.cardId === cardId ? { ...c, state: "not_suitable" } : c
+      ),
+    },
+  };
+
+  // Sweep: replace untouched copies on today and future unlocked days of
+  // the same week, in date order so each backfill sees the previous ones.
+  const sweepDates = Object.keys(working)
+    .filter(
+      (d) =>
+        d >= todayISO &&
+        d !== date &&
+        working[d].weekStart === day.weekStart &&
+        !working[d].locked
+    )
+    .sort();
+
+  sweepDates.forEach((sweepDate) => {
+    const sweepDay = working[sweepDate];
+    const targets = sweepDay.cards.filter(
+      (c) =>
+        c.exerciseId === exerciseId && c.state === "not_started" && !c.note
+    );
+
+    targets.forEach((target) => {
+      const chosen = chooseBackfill(
+        working,
+        sweepDate,
+        target,
+        newLibrary,
+        settings
+      );
+      if (!chosen) return; // no alternative in this domain: leave the card
+
+      const backfill = {
+        ...buildCard(sweepDate, target.slotIndex, chosen.replacement, chosen.context),
+        cardId: target.cardId,
+        slotIndex: target.slotIndex,
+        swap: {
+          wasSwapped: true,
+          swappedAt,
+          fromExerciseId: target.exerciseId,
+          toExerciseId: chosen.replacement.id,
+          reason: "not_suitable",
+        },
+      };
+
+      working[sweepDate] = {
+        ...working[sweepDate],
+        cards: working[sweepDate].cards.map((c) =>
+          c.cardId === target.cardId ? backfill : c
+        ),
+      };
+    });
+  });
+
+  return { days: working, library: newLibrary };
+}
+
+// Un-marking the card is the review path until a library screen or LLM
+// import exists: needs_review returns to active. Retired stays retired.
+export function restoreSuitability(library, exerciseId) {
+  return library.map((exercise) =>
+    exercise.id === exerciseId && exercise.status === "needs_review"
+      ? { ...exercise, status: "active" }
+      : exercise
+  );
 }

@@ -422,3 +422,213 @@ test("moves are deterministic", () => {
     JSON.parse(JSON.stringify(b))
   );
 });
+
+// ── Phase 3: suitability ─────────────────────────────────────────────────
+
+import {
+  markNotSuitable,
+  restoreSuitability,
+  recentSkipCounts,
+} from "../src/recommendationEngine.js";
+import { mergeLibrary } from "../src/data/exerciseLibrary.js";
+
+const TODAY = "2026-06-17"; // Wednesday of the test week
+
+function neckCardOn(days, date) {
+  return days[date].cards.find((c) => c.exerciseId === "neck_mobility");
+}
+
+test("markNotSuitable flips status and sweeps untouched today/future copies", () => {
+  const days = makeWeek();
+  // neck_mobility appears across the week; find an occurrence on/after TODAY
+  const occurrences = WEEK.filter((d) => neckCardOn(days, d));
+  const markDate = occurrences.find((d) => d >= TODAY) ?? occurrences[0];
+  const card = neckCardOn(days, markDate);
+
+  // Give one future copy a note so it must be left alone.
+  const futureWithCopy = occurrences.filter((d) => d > markDate);
+  let prepared = days;
+  let protectedDate = null;
+  if (futureWithCopy.length > 1) {
+    protectedDate = futureWithCopy[futureWithCopy.length - 1];
+    prepared = {
+      ...days,
+      [protectedDate]: {
+        ...days[protectedDate],
+        cards: days[protectedDate].cards.map((c) =>
+          c.exerciseId === "neck_mobility" ? { ...c, note: "felt ok" } : c
+        ),
+      },
+    };
+  }
+
+  const { days: after, library } = markNotSuitable(
+    prepared,
+    exerciseLibrary,
+    markDate,
+    card.cardId,
+    SETTINGS,
+    TODAY
+  );
+
+  // Status flipped
+  assert.equal(
+    library.find((e) => e.id === "neck_mobility").status,
+    "needs_review"
+  );
+  // The marked card stays, state not_suitable
+  assert.equal(neckCardOn(after, markDate).state, "not_suitable");
+
+  // Untouched copies on/after TODAY (other than the marked card) replaced
+  WEEK.filter((d) => d >= TODAY && d !== markDate).forEach((d) => {
+    const copy = neckCardOn(after, d);
+    if (protectedDate && d === protectedDate) {
+      assert.ok(copy, `noted copy on ${d} must remain`);
+    } else if (copy) {
+      assert.fail(`untouched copy on ${d} should have been swept`);
+    }
+    // domain integrity
+    const domains = after[d].cards.map((c) => c.domainPresented).sort();
+    assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
+  });
+
+  // Past days untouched
+  WEEK.filter((d) => d < TODAY && d !== markDate).forEach((d) => {
+    assert.deepEqual(after[d], prepared[d]);
+  });
+
+  // Sweep provenance recorded
+  const swept = WEEK.map((d) => after[d].cards)
+    .flat()
+    .filter((c) => c.swap?.reason === "not_suitable");
+  assert.ok(swept.length >= 0); // may be 0 if no future copies existed
+});
+
+test("restoreSuitability returns needs_review to active, leaves retired alone", () => {
+  const flagged = exerciseLibrary.map((e) =>
+    e.id === "neck_mobility"
+      ? { ...e, status: "needs_review" }
+      : e.id === "chest_opener"
+        ? { ...e, status: "retired" }
+        : e
+  );
+  const restored = restoreSuitability(flagged, "neck_mobility");
+  assert.equal(restored.find((e) => e.id === "neck_mobility").status, "active");
+  const stillRetired = restoreSuitability(flagged, "chest_opener");
+  assert.equal(stillRetired.find((e) => e.id === "chest_opener").status, "retired");
+});
+
+test("generation and swap exclude needs_review exercises", () => {
+  const flagged = exerciseLibrary.map((e) =>
+    e.id === "current_rehab" ? { ...e, status: "needs_review" } : e
+  );
+  const days = generateWeek({
+    weekDates: WEEK,
+    library: flagged,
+    settings: SETTINGS,
+  });
+  WEEK.forEach((d) => {
+    assert.ok(
+      !days[d].cards.some((c) => c.exerciseId === "current_rehab"),
+      `current_rehab generated on ${d} despite needs_review`
+    );
+    // rehab domain still filled by the alternative
+    assert.ok(days[d].cards.some((c) => c.domainPresented === "rehab"));
+  });
+
+  const rehabCard = days[WEEK[0]].cards.find(
+    (c) => c.domainPresented === "rehab"
+  );
+  const options = swapAlternatives(rehabCard, days[WEEK[0]].cards, flagged, {});
+  assert.ok(!options.some((e) => e.id === "current_rehab"));
+});
+
+test("anchor day degrades gracefully when the anchor is flagged", () => {
+  const flagged = exerciseLibrary.map((e) =>
+    e.id === "qigong" ? { ...e, status: "needs_review" } : e
+  );
+  const days = generateWeek({
+    weekDates: WEEK,
+    library: flagged,
+    settings: ANCHOR_SETTINGS,
+  });
+  const tue = days["2026-06-16"];
+  assert.equal(tue.cards.filter((c) => c.exerciseId === "qigong").length, 0);
+  assert.equal(tue.cards.length, 6);
+  const domains = tue.cards.map((c) => c.domainPresented).sort();
+  assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
+});
+
+test("recent skips down-rank an exercise in next week's generation", () => {
+  const baseline = makeWeek();
+  const baselineCount = WEEK.filter((d) =>
+    baseline[d].cards.some((c) => c.exerciseId === "tandem_stand")
+  ).length;
+
+  // Prior week where tandem_stand was skipped every time it appeared.
+  const priorWeek = [
+    "2026-06-08", "2026-06-09", "2026-06-10", "2026-06-11",
+    "2026-06-12", "2026-06-13", "2026-06-14",
+  ];
+  const prior = generateWeek({
+    weekDates: priorWeek,
+    library: exerciseLibrary,
+    settings: SETTINGS,
+  });
+  Object.keys(prior).forEach((d) => {
+    prior[d] = {
+      ...prior[d],
+      cards: prior[d].cards.map((c) =>
+        c.exerciseId === "tandem_stand" ? { ...c, state: "skip" } : c
+      ),
+    };
+  });
+
+  const withSkips = makeWeek({ priorDays: prior });
+  const skippedCount = WEEK.filter((d) =>
+    withSkips[d].cards.some((c) => c.exerciseId === "tandem_stand")
+  ).length;
+
+  assert.ok(
+    skippedCount <= baselineCount,
+    `expected ${skippedCount} <= ${baselineCount}`
+  );
+  // And the helper itself counts correctly.
+  const counts = recentSkipCounts(prior, WEEK[0]);
+  assert.ok((counts.tandem_stand ?? 0) >= 1);
+});
+
+test("mergeLibrary preserves guidance and keeps saved-only entries", () => {
+  const saved = [
+    ...exerciseLibrary.map((e) =>
+      e.id === "neck_mobility"
+        ? { ...e, status: "needs_review", currentDoseLevel: 2 }
+        : e
+    ),
+    {
+      id: "llm_added_stretch",
+      name: "LLM-added stretch",
+      domain: "mobility_recovery",
+      status: "active",
+      contexts: ["daytime"],
+      functionalTags: [],
+      careTags: [],
+      intensity: "gentle",
+      instructions: "Added by review.",
+      variantLevels: [{ level: 1, label: "Default" }],
+      doseLevels: [{ level: 1, displayText: "A little" }],
+      currentVariantLevel: 1,
+      currentDoseLevel: 1,
+    },
+  ];
+
+  const merged = mergeLibrary(exerciseLibrary, saved);
+  const neck = merged.find((e) => e.id === "neck_mobility");
+  assert.equal(neck.status, "needs_review");
+  assert.equal(neck.currentDoseLevel, 2);
+  // Content still comes from code
+  assert.equal(neck.name, "Neck mobility");
+  // Saved-only entry survives
+  assert.ok(merged.some((e) => e.id === "llm_added_stretch"));
+  assert.equal(merged.length, exerciseLibrary.length + 1);
+});

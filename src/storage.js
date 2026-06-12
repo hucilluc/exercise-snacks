@@ -16,7 +16,11 @@ import {
   emptyZoneScores,
   scoreDays,
 } from "./data/bodyBright.js";
-import { exerciseLibrary, libraryVersion } from "./data/exerciseLibrary.js";
+import {
+  exerciseLibrary,
+  libraryVersion,
+  mergeLibrary,
+} from "./data/exerciseLibrary.js";
 import { generateWeek, generatorVersion } from "./recommendationEngine.js";
 
 export const STORAGE_KEY = "bodyBrightProfile_v4";
@@ -396,9 +400,14 @@ export function loadProfile(currentWeekDates) {
     return createProfile(currentWeekDates);
   }
 
-  // Reseed the embedded library when the code-side library is newer.
+  // Reseed the embedded library when the code-side library is newer,
+  // preserving user/LLM-owned guidance (status, dose/variant levels).
   if ((profile.libraryVersion ?? 0) < libraryVersion) {
-    profile = { ...profile, libraryVersion, exerciseLibrary };
+    profile = {
+      ...profile,
+      libraryVersion,
+      exerciseLibrary: mergeLibrary(exerciseLibrary, profile.exerciseLibrary),
+    };
   }
 
   return rolloverProfile(profile, currentWeekDates);

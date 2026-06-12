@@ -6,8 +6,10 @@ import ExerciseDetailModal from "./components/ExerciseDetailModal";
 import { bodyBright, scoreDays, zoneColors } from "./data/bodyBright";
 import { findExerciseInLibrary } from "./data/exerciseLibrary";
 import {
+  markNotSuitable,
   moveCards,
   recentUseCounts,
+  restoreSuitability,
   swapAlternatives,
 } from "./recommendationEngine";
 import {
@@ -18,6 +20,7 @@ import {
   loadProfile,
   parseISODate,
   saveProfile,
+  toISODate,
 } from "./storage";
 import "./styles.css";
 
@@ -124,10 +127,53 @@ function App() {
   }
 
   function handleSetState(cardId, nextState) {
-    updateSelectedDayCard(cardId, (card) => ({
-      ...card,
-      state: card.state === nextState ? "not_started" : nextState,
-    }));
+    setProfile((current) => {
+      const day = current.days[selectedDate];
+      if (!day || day.locked) return current;
+
+      const card = day.cards.find((c) => c.cardId === cardId);
+      if (!card) return current;
+
+      const resolvedState = card.state === nextState ? "not_started" : nextState;
+
+      // Entering not_suitable soft-disables the exercise and sweeps its
+      // untouched copies off today/future days (spec §7).
+      if (resolvedState === "not_suitable") {
+        const result = markNotSuitable(
+          current.days,
+          current.exerciseLibrary,
+          selectedDate,
+          cardId,
+          current.settings,
+          toISODate(new Date())
+        );
+        return {
+          ...current,
+          days: result.days,
+          exerciseLibrary: result.library,
+        };
+      }
+
+      // Leaving not_suitable restores the exercise to active rotation.
+      const exerciseLibrary =
+        card.state === "not_suitable"
+          ? restoreSuitability(current.exerciseLibrary, card.exerciseId)
+          : current.exerciseLibrary;
+
+      return {
+        ...current,
+        exerciseLibrary,
+        days: {
+          ...current.days,
+          [selectedDate]: {
+            ...day,
+            cards: day.cards.map((c) =>
+              c.cardId === cardId ? { ...c, state: resolvedState } : c
+            ),
+          },
+        },
+      };
+    });
   }
 
   function handleSetNote(cardId, note) {

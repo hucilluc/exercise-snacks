@@ -667,6 +667,32 @@ export function findExerciseInLibrary(library, exerciseId) {
   return library.find((exercise) => exercise.id === exerciseId);
 }
 
+// Reseed merge: when the code-side library is newer, take its content but
+// preserve the per-exercise "active guidance" the user or a reviewing LLM
+// owns (Data Spec §3): status, reviewMode, and current dose/variant levels.
+// Saved-only exercises (e.g. LLM-added) are kept, not dropped.
+export function mergeLibrary(codeLibrary, savedLibrary = []) {
+  const savedById = new Map(savedLibrary.map((e) => [e.id, e]));
+
+  const merged = codeLibrary.map((exercise) => {
+    const saved = savedById.get(exercise.id);
+    if (!saved) return exercise;
+    return {
+      ...exercise,
+      status: saved.status ?? exercise.status,
+      reviewMode: saved.reviewMode ?? exercise.reviewMode,
+      currentDoseLevel: saved.currentDoseLevel ?? exercise.currentDoseLevel,
+      currentVariantLevel:
+        saved.currentVariantLevel ?? exercise.currentVariantLevel,
+    };
+  });
+
+  const codeIds = new Set(codeLibrary.map((e) => e.id));
+  const savedOnly = savedLibrary.filter((e) => !codeIds.has(e.id));
+
+  return [...merged, ...savedOnly];
+}
+
 export function currentDoseText(exercise) {
   return (
     exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)
