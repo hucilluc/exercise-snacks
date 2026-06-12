@@ -75,8 +75,16 @@ function defaultSettings() {
       "rehab",
     ],
     weeklyAnchors: {
-      tuesday: "qigong",
-      sunday: "yoga",
+      // Each anchor claims its listed domains: one card per domain, all
+      // referring to the same scheduled activity.
+      tuesday: {
+        exerciseId: "qigong",
+        domains: ["mobility_recovery", "balance_stability", "core_posture"],
+      },
+      sunday: {
+        exerciseId: "yoga",
+        domains: ["mobility_recovery", "core_posture"],
+      },
     },
     saturdayLightness: true,
     walkPlacement: {

@@ -34,9 +34,13 @@ export default function ExerciseDetailModal({
   exercise,
   isOpen,
   zoneColor,
+  weekDates = [],
+  dayNames = [],
+  selectedDate,
   onSetState,
   onSetNote,
   onSwap,
+  onMove,
   onClose,
 }) {
   if (!isOpen || !card || !exercise) {
@@ -101,6 +105,25 @@ export default function ExerciseDetailModal({
           >
             Swap exercise
           </button>
+
+          {onMove && weekDates.length > 0 && (
+            <div className="move-day-section">
+              <p className="move-day-label">Move to another day</p>
+              <div className="move-day-row">
+                {weekDates.map((date, index) => (
+                  <button
+                    className="day-pill move-day-pill"
+                    type="button"
+                    key={date}
+                    disabled={date === selectedDate}
+                    onClick={() => onMove(card.cardId, date)}
+                  >
+                    {dayNames[index]}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="modal-section">

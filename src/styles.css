@@ -867,3 +867,33 @@ h2 {
 .card-note-field::placeholder {
   color: rgba(148, 163, 184, 0.6);
 }
+
+.move-day-section {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+}
+
+.move-day-label {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(186, 230, 253, 0.7);
+}
+
+.move-day-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.move-day-pill {
+  padding: 7px 11px;
+  font-size: 0.78rem;
+}
+
+.move-day-pill:disabled {
+  opacity: 0.35;
+  cursor: default;
+}

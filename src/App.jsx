@@ -5,7 +5,11 @@ import ExerciseCard from "./components/ExerciseCard";
 import ExerciseDetailModal from "./components/ExerciseDetailModal";
 import { bodyBright, scoreDays, zoneColors } from "./data/bodyBright";
 import { findExerciseInLibrary } from "./data/exerciseLibrary";
-import { recentUseCounts, swapAlternatives } from "./recommendationEngine";
+import {
+  moveCards,
+  recentUseCounts,
+  swapAlternatives,
+} from "./recommendationEngine";
 import {
   dayNames,
   getMonday,
@@ -128,6 +132,21 @@ function App() {
 
   function handleSetNote(cardId, note) {
     updateSelectedDayCard(cardId, (card) => ({ ...card, note }));
+  }
+
+  function handleMoveCard(cardId, toDate) {
+    setSelectedCardId(null);
+    setProfile((current) => ({
+      ...current,
+      days: moveCards(
+        current.days,
+        selectedDate,
+        cardId,
+        toDate,
+        current.exerciseLibrary,
+        current.settings
+      ),
+    }));
   }
 
   function handleSwap(cardId) {
@@ -296,9 +315,13 @@ function App() {
         zoneColor={
           selectedCard ? zoneColors[selectedCard.bodyBrightZonePresented] : null
         }
+        weekDates={currentWeekDates}
+        dayNames={dayNames}
+        selectedDate={selectedDate}
         onSetState={handleSetState}
         onSetNote={handleSetNote}
         onSwap={handleSwap}
+        onMove={handleMoveCard}
         onClose={() => setSelectedCardId(null)}
       />
     </main>

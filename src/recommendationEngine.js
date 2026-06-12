@@ -12,9 +12,9 @@
 // Phase 2 hook: generateWeek accepts reservedSlotsByDate so anchor
 // activities (Qigong/Yoga) can claim domain slots before generation.
 
-import { zoneForDomain } from "./data/bodyBright.js";
+import { domainLabels, zoneForDomain } from "./data/bodyBright.js";
 
-export const generatorVersion = 1;
+export const generatorVersion = 2;
 
 // Contextual flow order for a day's six cards (spec §5).
 const CONTEXT_FLOW = [
@@ -27,9 +27,36 @@ const CONTEXT_FLOW = [
 ];
 
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const WEEKDAY_FULL = {
+  sun: "sunday",
+  mon: "monday",
+  tue: "tuesday",
+  wed: "wednesday",
+  thu: "thursday",
+  fri: "friday",
+  sat: "saturday",
+};
 // Days whose cardio slot should be a walk chosen by the engine rather than
 // a fixed walkPlacement label. Sunday is deliberately flexible.
 const FLEXIBLE_WALK_DAYS = new Set(["tue", "thu", "sat"]);
+
+// Domains an anchor credits when settings still use the legacy plain-string
+// form ("tuesday": "qigong"). New profiles store { exerciseId, domains }.
+const ANCHOR_DEFAULT_DOMAINS = {
+  qigong: ["mobility_recovery", "balance_stability", "core_posture"],
+  yoga: ["mobility_recovery", "core_posture"],
+};
+
+export function normalizeAnchor(value) {
+  if (!value) return null;
+  if (typeof value === "string") {
+    return {
+      exerciseId: value,
+      domains: ANCHOR_DEFAULT_DOMAINS[value] ?? [],
+    };
+  }
+  return value;
+}
 
 function weekdayKey(isoDate, offsetDays = 0) {
   const [y, m, d] = isoDate.split("-").map(Number);
@@ -50,14 +77,14 @@ function seededJitter(...parts) {
 
 // ── Cards ────────────────────────────────────────────────────────────────
 
-export function buildCard(date, slotIndex, exercise, contextKey) {
+export function buildCard(date, slotIndex, exercise, contextKey, displayName) {
   return {
     cardId: `${date}-slot-${slotIndex}`,
     slotIndex,
     domainPresented: exercise.domain,
     bodyBrightZonePresented: zoneForDomain(exercise.domain),
     exerciseId: exercise.id,
-    exerciseNamePresented: exercise.name,
+    exerciseNamePresented: displayName ?? exercise.name,
     contextPresented: contextKey,
     variantPresented:
       exercise.variantLevels.find(
@@ -214,14 +241,22 @@ function generateDay({
     weekUse[exercise.id] = (weekUse[exercise.id] ?? 0) + 1;
   }
 
-  // 1. Reserved slots (Phase 2 anchors) claim their domains first.
+  // 1. Reserved slots (anchors) claim their domains first. They do not
+  //    compete for contextual-flow slots: they become "scheduled" cards
+  //    appended after the flow (spec §13 — anchors are planned sessions).
+  //    Each claimed domain gets its own card, named for what it credits,
+  //    so a full session can light several zones marked one by one.
+  const reservedPicks = [];
   reservedSlots.forEach((reserved) => {
     const exercise = active.find((e) => e.id === reserved.exerciseId);
     if (!exercise || !remainingDomains.has(reserved.domain)) return;
-    place(
-      { ...exercise, domain: reserved.domain },
-      firstOpenSlotFor(exercise)
-    );
+    remainingDomains.delete(reserved.domain);
+    weekUse[exercise.id] = (weekUse[exercise.id] ?? 0) + 1;
+    reservedPicks.push({
+      exercise: { ...exercise, domain: reserved.domain },
+      context: reserved.context ?? "scheduled",
+      displayName: `${exercise.name} — ${domainLabels[reserved.domain]}`,
+    });
   });
 
   // 2. Cardio slot: fixed or flexible walk, except where already reserved.
@@ -272,9 +307,10 @@ function generateDay({
   }
   // Any domain still unplaced has no active exercises: skipped, not fatal.
 
-  // 4. Build cards in flow order. contextPresented is the slot's target
-  //    context when the exercise genuinely fits it, otherwise the
-  //    exercise's own primary context (best-approximation rule).
+  // 4. Build cards in flow order, then append the anchor cards at the end
+  //    of the day. contextPresented is the slot's target context when the
+  //    exercise genuinely fits it, otherwise the exercise's own primary
+  //    context (best-approximation rule).
   const cards = [];
   slots.forEach((exercise, i) => {
     if (!exercise) return;
@@ -283,6 +319,12 @@ function generateDay({
       ? target
       : exercise.contexts[0];
     cards.push(buildCard(date, cards.length + 1, exercise, context));
+  });
+
+  reservedPicks.forEach((pick) => {
+    cards.push(
+      buildCard(date, cards.length + 1, pick.exercise, pick.context, pick.displayName)
+    );
   });
 
   return {
@@ -310,6 +352,22 @@ export function generateWeek({
 }) {
   const weekStart = weekDates[0];
   const recentUse = recentUseCounts(priorDays, weekStart);
+
+  // Anchor activities (settings.weeklyAnchors) reserve their domain slots,
+  // merged with any explicitly passed reservations.
+  function reservedFor(date) {
+    const anchor = normalizeAnchor(
+      settings.weeklyAnchors?.[WEEKDAY_FULL[weekdayKey(date)]]
+    );
+    const anchorSlots = anchor
+      ? anchor.domains.map((domain) => ({
+          domain,
+          exerciseId: anchor.exerciseId,
+          context: "scheduled",
+        }))
+      : [];
+    return [...(reservedSlotsByDate[date] ?? []), ...anchorSlots];
+  }
 
   // Seed week usage with whatever the preserved days already show.
   const weekUse = {};
@@ -346,7 +404,7 @@ export function generateWeek({
         weekUse,
         recentUse,
         yesterdayIds,
-        reservedSlots: reservedSlotsByDate[date] ?? [],
+        reservedSlots: reservedFor(date),
       }),
       weekStart,
     };
@@ -391,4 +449,159 @@ export function swapAlternatives(card, dayCards, library, recentUse = {}) {
       (a, b) => b.rank - a.rank || a.exercise.id.localeCompare(b.exercise.id)
     )
     .map((entry) => entry.exercise);
+}
+
+// ── Cross-day moves ──────────────────────────────────────────────────────
+
+function weekUseCounts(days, weekStart) {
+  const counts = {};
+  Object.values(days).forEach((day) => {
+    if (day.weekStart !== weekStart) return;
+    day.cards.forEach((card) => {
+      counts[card.exerciseId] = (counts[card.exerciseId] ?? 0) + 1;
+    });
+  });
+  return counts;
+}
+
+function previousDateISO(isoDate) {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const prev = new Date(y, m - 1, d - 1);
+  const mm = String(prev.getMonth() + 1).padStart(2, "0");
+  const dd = String(prev.getDate()).padStart(2, "0");
+  return `${prev.getFullYear()}-${mm}-${dd}`;
+}
+
+// Move a card — or, for scheduled anchors, the whole activity's cards as a
+// unit — to another day in the same week. Domain is preserved on both ends:
+// the moved card replaces the target day's same-domain card, and the
+// vacated slots are backfilled deterministically by the engine. States do
+// not transfer; provenance is recorded in each affected card's swap field.
+export function moveCards(days, fromDate, cardId, toDate, library, settings) {
+  const fromDay = days[fromDate];
+  const toDay = days[toDate];
+  if (!fromDay || !toDay || fromDay.locked || toDay.locked) return days;
+  if (fromDate === toDate) return days;
+
+  const card = fromDay.cards.find((c) => c.cardId === cardId);
+  if (!card) return days;
+
+  // Anchor cards (scheduled, same activity) travel together.
+  const unit =
+    card.contextPresented === "scheduled"
+      ? fromDay.cards.filter(
+          (c) =>
+            c.exerciseId === card.exerciseId &&
+            c.contextPresented === "scheduled"
+        )
+      : [card];
+
+  const movedDomains = new Set(unit.map((c) => c.domainPresented));
+  const swappedAt = new Date().toISOString();
+
+  // 1. Place the moving cards into the target day, replacing the cards of
+  //    the same domains.
+  const newToCards = toDay.cards.map((target) => {
+    if (!movedDomains.has(target.domainPresented)) return target;
+    const moving = unit.find(
+      (c) => c.domainPresented === target.domainPresented
+    );
+    return {
+      ...moving,
+      cardId: target.cardId,
+      slotIndex: target.slotIndex,
+      state: "not_started",
+      note: "",
+      swap: {
+        wasSwapped: true,
+        swappedAt,
+        fromExerciseId: target.exerciseId,
+        toExerciseId: moving.exerciseId,
+        movedFrom: fromDate,
+        displacedState: target.state,
+      },
+    };
+  });
+
+  // 2. Backfill the vacated slots, scoring against the week as it now
+  //    stands so duplicates and over-used exercises are avoided.
+  const working = {
+    ...days,
+    [toDate]: { ...toDay, cards: newToCards },
+    [fromDate]: {
+      ...fromDay,
+      cards: fromDay.cards.filter((c) => !unit.includes(c)),
+    },
+  };
+
+  const weekStart = fromDay.weekStart;
+  const recentUse = recentUseCounts(days, weekStart);
+  const active = library.filter((e) => e.status === "active");
+  const wk = weekdayKey(fromDate);
+  const yesterdayIds = new Set(
+    exerciseIdsOnDay(working[previousDateISO(fromDate)])
+  );
+
+  const newFromCards = fromDay.cards.map((vacated) => {
+    if (!unit.includes(vacated)) return vacated;
+
+    const weekUse = weekUseCounts(working, weekStart);
+    const env = {
+      date: fromDate,
+      weekUse,
+      recentUse,
+      yesterdayIds,
+      isSaturday: wk === "sat",
+      saturdayLightness: settings.saturdayLightness !== false,
+      tomorrowFixedWalkId:
+        settings.walkPlacement?.[weekdayKey(fromDate, 1)] ?? null,
+    };
+
+    const usedOnDay = new Set(
+      working[fromDate].cards.map((c) => c.exerciseId)
+    );
+    const pool = active.filter(
+      (e) =>
+        e.domain === vacated.domainPresented &&
+        e.id !== vacated.exerciseId &&
+        !usedOnDay.has(e.id)
+    );
+
+    const targetContext =
+      vacated.contextPresented === "scheduled"
+        ? "daytime"
+        : vacated.contextPresented;
+    const replacement =
+      bestCandidate(pool, targetContext, env).exercise ??
+      library.find((e) => e.id === vacated.exerciseId);
+
+    const context = replacement.contexts.includes(targetContext)
+      ? targetContext
+      : replacement.contexts[0];
+
+    const backfill = {
+      ...buildCard(fromDate, vacated.slotIndex, replacement, context),
+      cardId: vacated.cardId,
+      slotIndex: vacated.slotIndex,
+      swap: {
+        wasSwapped: true,
+        swappedAt,
+        fromExerciseId: vacated.exerciseId,
+        toExerciseId: replacement.id,
+        movedTo: toDate,
+      },
+    };
+
+    working[fromDate] = {
+      ...working[fromDate],
+      cards: [...working[fromDate].cards, backfill],
+    };
+    return backfill;
+  });
+
+  return {
+    ...days,
+    [fromDate]: { ...fromDay, cards: newFromCards },
+    [toDate]: { ...toDay, cards: newToCards },
+  };
 }

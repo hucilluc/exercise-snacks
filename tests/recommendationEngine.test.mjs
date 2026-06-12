@@ -3,10 +3,12 @@ import assert from "node:assert/strict";
 import {
   generateWeek,
   generatorVersion,
+  moveCards,
   recentUseCounts,
   swapAlternatives,
 } from "../src/recommendationEngine.js";
 import { exerciseLibrary } from "../src/data/exerciseLibrary.js";
+import { scoreDays } from "../src/data/bodyBright.js";
 
 // 2026-06-15 is a Monday.
 const WEEK = [
@@ -232,4 +234,191 @@ test("recentUseCounts only looks back before the given date", () => {
   // walk_2 appears on Wed 17th — must not be counted yet.
   assert.equal(counts.walk_2 ?? 0, 0);
   assert.equal(counts.walk_1, 1);
+});
+
+// ── Phase 2: anchors and cross-day moves ─────────────────────────────────
+
+const ANCHOR_SETTINGS = {
+  ...SETTINGS,
+  weeklyAnchors: {
+    tuesday: {
+      exerciseId: "qigong",
+      domains: ["mobility_recovery", "balance_stability", "core_posture"],
+    },
+    sunday: {
+      exerciseId: "yoga",
+      domains: ["mobility_recovery", "core_posture"],
+    },
+  },
+};
+
+function makeAnchorWeek(overrides = {}) {
+  return generateWeek({
+    weekDates: WEEK,
+    library: exerciseLibrary,
+    settings: ANCHOR_SETTINGS,
+    ...overrides,
+  });
+}
+
+test("Tuesday anchor: three Qigong cards at the end, each crediting its own domain", () => {
+  const days = makeAnchorWeek();
+  const tue = days["2026-06-16"];
+
+  assert.equal(tue.cards.length, 6);
+  const qigongCards = tue.cards.filter((c) => c.exerciseId === "qigong");
+  assert.equal(qigongCards.length, 3);
+
+  const domains = qigongCards.map((c) => c.domainPresented).sort();
+  assert.deepEqual(domains, [
+    "balance_stability",
+    "core_posture",
+    "mobility_recovery",
+  ]);
+
+  qigongCards.forEach((c) => {
+    assert.equal(c.contextPresented, "scheduled");
+    assert.match(c.exerciseNamePresented, /^Qigong — /);
+  });
+
+  // Anchors sit at the end of the day's list.
+  const lastThree = tue.cards.slice(3).map((c) => c.exerciseId);
+  assert.deepEqual(lastThree, ["qigong", "qigong", "qigong"]);
+
+  // The remaining cards cover the other three domains, walk included.
+  const rest = tue.cards.slice(0, 3).map((c) => c.domainPresented).sort();
+  assert.deepEqual(rest, ["cardio_circulation", "rehab", "strength"]);
+  assert.ok(
+    exerciseById(cardioCard(tue).exerciseId).walkLabel,
+    "Tuesday should still get its walk"
+  );
+});
+
+test("Sunday anchor: two Yoga cards plus four generated", () => {
+  const days = makeAnchorWeek();
+  const sun = days["2026-06-21"];
+
+  const yogaCards = sun.cards.filter((c) => c.exerciseId === "yoga");
+  assert.equal(yogaCards.length, 2);
+  assert.deepEqual(
+    yogaCards.map((c) => c.domainPresented).sort(),
+    ["core_posture", "mobility_recovery"]
+  );
+  assert.equal(sun.cards.length, 6);
+  const domains = sun.cards.map((c) => c.domainPresented).sort();
+  assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
+});
+
+test("legacy string anchors normalise to default domain claims", () => {
+  const days = generateWeek({
+    weekDates: WEEK,
+    library: exerciseLibrary,
+    settings: { ...SETTINGS, weeklyAnchors: { tuesday: "qigong" } },
+  });
+  const qigongCards = days["2026-06-16"].cards.filter(
+    (c) => c.exerciseId === "qigong"
+  );
+  assert.equal(qigongCards.length, 3);
+});
+
+test("marking one anchor card Done credits only its zone", () => {
+  const days = makeAnchorWeek();
+  const tue = days["2026-06-16"];
+  const balanceCard = tue.cards.find(
+    (c) => c.exerciseId === "qigong" && c.domainPresented === "balance_stability"
+  );
+
+  const marked = {
+    ...days,
+    "2026-06-16": {
+      ...tue,
+      cards: tue.cards.map((c) =>
+        c.cardId === balanceCard.cardId ? { ...c, state: "done" } : c
+      ),
+    },
+  };
+
+  const { zoneScores } = scoreDays(marked, WEEK);
+  assert.equal(zoneScores.head, 1); // balance zone
+  assert.equal(zoneScores.midTorso, 0); // core untouched
+  assert.equal(zoneScores.lowerTorso, 0); // mobility untouched
+});
+
+test("moving a walk replaces the target day's cardio and backfills the source", () => {
+  const days = makeAnchorWeek();
+  const wed = days["2026-06-17"];
+  const walkCard = cardioCard(wed);
+  assert.equal(walkCard.exerciseId, "walk_2");
+
+  const moved = moveCards(
+    days,
+    "2026-06-17",
+    walkCard.cardId,
+    "2026-06-20",
+    exerciseLibrary,
+    ANCHOR_SETTINGS
+  );
+
+  const satCardio = cardioCard(moved["2026-06-20"]);
+  assert.equal(satCardio.exerciseId, "walk_2");
+  assert.equal(satCardio.swap.movedFrom, "2026-06-17");
+  assert.equal(satCardio.state, "not_started");
+
+  const wedCardio = cardioCard(moved["2026-06-17"]);
+  assert.notEqual(wedCardio.exerciseId, "walk_2");
+  assert.equal(wedCardio.domainPresented, "cardio_circulation");
+  assert.equal(wedCardio.swap.movedTo, "2026-06-20");
+
+  // Domain uniqueness preserved on both days.
+  ["2026-06-17", "2026-06-20"].forEach((date) => {
+    const domains = moved[date].cards.map((c) => c.domainPresented).sort();
+    assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
+    assert.equal(moved[date].cards.length, 6);
+  });
+});
+
+test("moving an anchor card moves the whole activity as a unit", () => {
+  const days = makeAnchorWeek();
+  const tue = days["2026-06-16"];
+  const oneQigong = tue.cards.find((c) => c.exerciseId === "qigong");
+
+  const moved = moveCards(
+    days,
+    "2026-06-16",
+    oneQigong.cardId,
+    "2026-06-18",
+    exerciseLibrary,
+    ANCHOR_SETTINGS
+  );
+
+  const thuQigong = moved["2026-06-18"].cards.filter(
+    (c) => c.exerciseId === "qigong"
+  );
+  assert.equal(thuQigong.length, 3);
+  assert.deepEqual(
+    thuQigong.map((c) => c.domainPresented).sort(),
+    ["balance_stability", "core_posture", "mobility_recovery"]
+  );
+
+  const tueQigong = moved["2026-06-16"].cards.filter(
+    (c) => c.exerciseId === "qigong"
+  );
+  assert.equal(tueQigong.length, 0);
+
+  ["2026-06-16", "2026-06-18"].forEach((date) => {
+    const domains = moved[date].cards.map((c) => c.domainPresented).sort();
+    assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
+    assert.equal(moved[date].cards.length, 6);
+  });
+});
+
+test("moves are deterministic", () => {
+  const days = makeAnchorWeek();
+  const walkCard = cardioCard(days["2026-06-17"]);
+  const a = moveCards(days, "2026-06-17", walkCard.cardId, "2026-06-20", exerciseLibrary, ANCHOR_SETTINGS);
+  const b = moveCards(days, "2026-06-17", walkCard.cardId, "2026-06-20", exerciseLibrary, ANCHOR_SETTINGS);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(a)),
+    JSON.parse(JSON.stringify(b))
+  );
 });
