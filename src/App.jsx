@@ -5,6 +5,7 @@ import ExerciseCard from "./components/ExerciseCard";
 import ExerciseDetailModal from "./components/ExerciseDetailModal";
 import { bodyBright, scoreDays, zoneColors } from "./data/bodyBright";
 import { findExerciseInLibrary } from "./data/exerciseLibrary";
+import { recentUseCounts, swapAlternatives } from "./recommendationEngine";
 import {
   dayNames,
   getMonday,
@@ -47,18 +48,6 @@ function groupSnapshotsByMonth(weeklySnapshots) {
     groups[label].push(snapshot);
     return groups;
   }, {});
-}
-
-function getSwapOptions(card, dayCards, library) {
-  return library.filter(
-    (exercise) =>
-      exercise.status === "active" &&
-      exercise.domain === card.domainPresented &&
-      !dayCards.some(
-        (other) =>
-          other.cardId !== card.cardId && other.exerciseId === exercise.id
-      )
-  );
 }
 
 function App() {
@@ -145,13 +134,11 @@ function App() {
     const card = dayCards.find((c) => c.cardId === cardId);
     if (!card) return;
 
-    const options = getSwapOptions(card, dayCards, library);
-    if (options.length <= 1) return;
+    const recentUse = recentUseCounts(profile.days, selectedDate);
+    const options = swapAlternatives(card, dayCards, library, recentUse);
+    if (options.length === 0) return;
 
-    const currentIndex = options.findIndex(
-      (exercise) => exercise.id === card.exerciseId
-    );
-    const replacement = options[(currentIndex + 1) % options.length];
+    const replacement = options[0];
 
     updateSelectedDayCard(cardId, (current) => ({
       ...current,

@@ -4,8 +4,10 @@
 // exercise library, daily history, weekly snapshots, and the embedded LLM
 // review guide/permissions that make exports self-explaining.
 //
-// Clean break from the v3 layout: a new storage key is used and old keys are
-// ignored. Saved days use `days` → `cards` naming throughout.
+// Daily cards are produced by the recommendation engine. Generated days are
+// stable: once written they are never regenerated, except for the one-time
+// migration when generatorVersion increases, which only touches untouched
+// days from today onwards.
 
 import {
   bodyBright,
@@ -13,15 +15,9 @@ import {
   emptyStateCounts,
   emptyZoneScores,
   scoreDays,
-  zoneForDomain,
-} from "./data/bodyBright";
-import {
-  currentDoseText,
-  currentVariant,
-  exerciseLibrary,
-  findExerciseInLibrary,
-  libraryVersion,
-} from "./data/exerciseLibrary";
+} from "./data/bodyBright.js";
+import { exerciseLibrary, libraryVersion } from "./data/exerciseLibrary.js";
+import { generateWeek, generatorVersion } from "./recommendationEngine.js";
 
 export const STORAGE_KEY = "bodyBrightProfile_v4";
 export const SCHEMA_VERSION = 4;
@@ -64,12 +60,6 @@ export function getWeekDates(weekStartDate) {
 export function getTodayIndex(weekDates) {
   const index = weekDates.indexOf(toISODate(new Date()));
   return index === -1 ? 0 : index;
-}
-
-function weekdayKey(isoDate) {
-  return ["sun", "mon", "tue", "wed", "thu", "fri", "sat"][
-    parseISODate(isoDate).getDay()
-  ];
 }
 
 // ── Default profile sections ─────────────────────────────────────────────
@@ -207,64 +197,6 @@ function defaultValidationRules() {
   };
 }
 
-// ── Day building ─────────────────────────────────────────────────────────
-
-export function buildCard(date, slotIndex, exercise, contextKey) {
-  return {
-    cardId: `${date}-slot-${slotIndex}`,
-    slotIndex,
-    domainPresented: exercise.domain,
-    bodyBrightZonePresented: zoneForDomain(exercise.domain),
-    exerciseId: exercise.id,
-    exerciseNamePresented: exercise.name,
-    contextPresented: contextKey,
-    variantPresented: currentVariant(exercise),
-    dosePresented:
-      exercise.doseLevels.find(
-        (dose) => dose.level === exercise.currentDoseLevel
-      ) ?? null,
-    state: "not_started",
-    note: "",
-    originalExerciseId: exercise.id,
-    swap: null,
-  };
-}
-
-// Interim day builder until the recommendation engine (Phase 1) replaces it.
-// Fixed contextual-flow day; only the walk varies, following walkPlacement.
-function buildDefaultDay(date, library, settings) {
-  const walkId = settings.walkPlacement?.[weekdayKey(date)] ?? "walk_1";
-
-  const slotPlan = [
-    { exerciseId: "pelvic_tilts", context: "getting_up" },
-    { exerciseId: "counter_pushups", context: "kitchen" },
-    { exerciseId: walkId, context: "outdoors" },
-    { exerciseId: "supported_one_leg_balance", context: "sitting_break" },
-    { exerciseId: "neck_mobility", context: "sitting_break" },
-    { exerciseId: "current_rehab", context: "daytime" },
-  ];
-
-  return {
-    date,
-    weekStart: toISODate(getMonday(parseISODate(date))),
-    locked: false,
-    cards: slotPlan
-      .map((slot, index) => {
-        const exercise = findExerciseInLibrary(library, slot.exerciseId);
-        if (!exercise) return null;
-        return buildCard(date, index + 1, exercise, slot.context);
-      })
-      .filter(Boolean),
-  };
-}
-
-export function buildWeekDays(weekDates, library, settings) {
-  return weekDates.reduce((acc, date) => {
-    acc[date] = buildDefaultDay(date, library, settings);
-    return acc;
-  }, {});
-}
-
 // ── Snapshots and rollover ───────────────────────────────────────────────
 
 function createWeeklySnapshot(weekStartISO, days, weekType = "active") {
@@ -292,6 +224,35 @@ function createWeeklySnapshot(weekStartISO, days, weekType = "active") {
   };
 }
 
+function dayHasActivity(day) {
+  return day.cards.some(
+    (card) => card.state !== "not_started" || card.note || card.swap
+  );
+}
+
+// Decide which current-week days must be preserved as-is. A day is kept
+// when the user has touched it, when it is already in the past, or when it
+// was produced by the current generator (stability rule).
+function currentWeekFixedDays(days, currentWeekDates, todayISO) {
+  const fixed = {};
+
+  currentWeekDates.forEach((date) => {
+    const day = days[date];
+    if (!day) return;
+
+    const keep =
+      date < todayISO ||
+      dayHasActivity(day) ||
+      (day.generatorVersion ?? 0) >= generatorVersion;
+
+    if (keep) {
+      fixed[date] = day;
+    }
+  });
+
+  return fixed;
+}
+
 export function createProfile(currentWeekDates) {
   const today = toISODate(new Date());
   const settings = defaultSettings();
@@ -317,7 +278,11 @@ export function createProfile(currentWeekDates) {
       selectedDate: currentWeekDates[getTodayIndex(currentWeekDates)],
       editable: true,
     },
-    days: buildWeekDays(currentWeekDates, exerciseLibrary, settings),
+    days: generateWeek({
+      weekDates: currentWeekDates,
+      library: exerciseLibrary,
+      settings,
+    }),
     weeklySnapshots: {},
     reviewState: {
       lastReviewedOn: null,
@@ -329,17 +294,19 @@ export function createProfile(currentWeekDates) {
 
 function rolloverProfile(profile, currentWeekDates) {
   const currentWeekStartISO = currentWeekDates[0];
+  const todayISO = toISODate(new Date());
   const days = { ...profile.days };
   const weeklySnapshots = { ...profile.weeklySnapshots };
 
+  // Archive any whole weeks between the saved week and the current one.
   let cursor = parseISODate(profile.currentWeek.weekStart);
   const currentWeekStartDate = parseISODate(currentWeekStartISO);
 
   while (cursor < currentWeekStartDate) {
     const weekStartISO = toISODate(cursor);
     const weekDates = getWeekDates(cursor);
-    const hasActivity = weekDates.some((date) =>
-      days[date]?.cards.some((card) => card.state !== "not_started")
+    const hasActivity = weekDates.some(
+      (date) => days[date] && dayHasActivity(days[date])
     );
 
     if (!weeklySnapshots[weekStartISO]) {
@@ -359,15 +326,26 @@ function rolloverProfile(profile, currentWeekDates) {
     cursor = addDays(cursor, 7);
   }
 
-  const weekDefaults = buildWeekDays(
-    currentWeekDates,
-    profile.exerciseLibrary,
-    profile.settings
+  // Fill the current week, preserving fixed days (see currentWeekFixedDays).
+  const fixedDays = currentWeekFixedDays(days, currentWeekDates, todayISO);
+  const priorDays = Object.fromEntries(
+    Object.entries(days).filter(([date]) => date < currentWeekStartISO)
   );
 
+  const weekDays = generateWeek({
+    weekDates: currentWeekDates,
+    library: profile.exerciseLibrary,
+    settings: profile.settings,
+    priorDays,
+    fixedDays,
+  });
+
   currentWeekDates.forEach((date) => {
-    days[date] = days[date] ?? weekDefaults[date];
-    days[date] = { ...days[date], locked: false, weekStart: currentWeekStartISO };
+    days[date] = {
+      ...weekDays[date],
+      locked: false,
+      weekStart: currentWeekStartISO,
+    };
   });
 
   const selectedDate = currentWeekDates.includes(
@@ -435,5 +413,3 @@ export function saveProfile(profile) {
 export function contextLabel(contextKey) {
   return contextLabels[contextKey] ?? contextKey;
 }
-
-export { currentDoseText };
