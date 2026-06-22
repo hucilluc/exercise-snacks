@@ -1,6 +1,6 @@
-const guidanceText = "Small enough to start.";
+export const DEFAULT_CAPTION = "Small enough to start.";
 
-export default function Header() {
+export default function Header({ caption = DEFAULT_CAPTION }) {
   const today = new Date();
 
   const formattedDate = today.toLocaleDateString("en-GB", {
@@ -14,7 +14,7 @@ export default function Header() {
     <header className="app-header mobile-v2-header">
       <p className="app-kicker">Body Bright</p>
       <p className="header-date">{formattedDate}</p>
-      <p className="guidance-line">{guidanceText}</p>
+      <p className="guidance-line">{caption}</p>
     </header>
   );
 }

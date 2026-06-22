@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import Header from "./components/Header";
+import Header, { DEFAULT_CAPTION } from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
 import ExerciseDetailModal from "./components/ExerciseDetailModal";
@@ -99,6 +99,16 @@ function App() {
     () => groupSnapshotsByMonth(profile.weeklySnapshots),
     [profile.weeklySnapshots]
   );
+
+  // Caption shown under the header. Read from the (importable) profile
+  // settings, preferring the home-screen caption, then the generic and
+  // weekly variants; falls back to the built-in default when none is set.
+  const settings = profile.settings ?? {};
+  const headerCaption =
+    settings.homeCaption ||
+    settings.caption ||
+    settings.weeklyCaption ||
+    DEFAULT_CAPTION;
 
   useEffect(() => {
     saveProfile(profile);
@@ -301,7 +311,7 @@ function App() {
   return (
     <main className="app-shell">
       <section className="dashboard-shell">
-        <Header />
+        <Header caption={headerCaption} />
 
         <div className="view-toggle" aria-label="App section">
           <button
