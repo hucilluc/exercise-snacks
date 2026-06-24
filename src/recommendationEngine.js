@@ -442,16 +442,45 @@ export function generateWeek({
 
 // ── Swap ─────────────────────────────────────────────────────────────────
 
-// Ranked same-domain alternatives for a card (spec §8). One mechanism for
-// every slot: walks, snacks and (in Phase 2) anchors alike. The domain is
-// preserved so Body Bright scoring keeps one credit per domain per day.
+// Map of anchor exerciseId → Set of the domains it is configured to cover
+// (e.g. Qigong → mobility/balance/core). Drawn from settings.weeklyAnchors,
+// so it follows the user's configuration rather than any hard-coded day.
+function buildAnchorDomainMap(settings) {
+  const map = new Map();
+  Object.values(settings?.weeklyAnchors ?? {}).forEach((value) => {
+    const anchor = normalizeAnchor(value);
+    if (!anchor) return;
+    const domains = map.get(anchor.exerciseId) ?? new Set();
+    anchor.domains.forEach((domain) => domains.add(domain));
+    map.set(anchor.exerciseId, domains);
+  });
+  return map;
+}
+
+// The anchor domains for one exercise, or null. Lets the UI name a
+// swapped-in anchor card by the slot it credits ("Qigong — Balance …").
+export function anchorDomainsForExercise(exerciseId, settings) {
+  return buildAnchorDomainMap(settings).get(exerciseId) ?? null;
+}
+
+// Ranked alternatives for a card (spec §8). One mechanism for every slot:
+// walks, snacks and anchors alike. The domain is preserved so Body Bright
+// scoring keeps one credit per domain per day.
+//
+// Anchor activities are also offered for any slot whose domain they cover —
+// so Qigong can be swapped into its mobility/balance/core slots on a day it
+// was not auto-scheduled (e.g. when the class falls on Wednesday) — and are
+// exempt from the once-per-day exclusion so they can fill all their slots.
 export function swapAlternatives(
   card,
   dayCards,
   library,
   recentUse = {},
-  recentSkips = {}
+  recentSkips = {},
+  settings = {}
 ) {
+  const anchorDomains = buildAnchorDomainMap(settings);
+
   const usedToday = new Set(
     dayCards
       .filter((other) => other.cardId !== card.cardId)
@@ -461,19 +490,46 @@ export function swapAlternatives(
   const currentExercise = library.find((e) => e.id === card.exerciseId);
 
   return library
-    .filter(
-      (exercise) =>
-        exercise.status === "active" &&
-        exercise.domain === card.domainPresented &&
-        exercise.id !== card.exerciseId &&
-        !usedToday.has(exercise.id)
-    )
+    .filter((exercise) => {
+      if (exercise.status !== "active") return false;
+      if (exercise.id === card.exerciseId) return false;
+
+      const coversThisSlot =
+        anchorDomains.get(exercise.id)?.has(card.domainPresented) ?? false;
+
+      // Offer the exercise when its own domain matches the slot, or when it
+      // is an anchor configured to cover this slot's domain.
+      if (exercise.domain !== card.domainPresented && !coversThisSlot) {
+        return false;
+      }
+
+      // Ordinary exercises appear once per day; anchors may fill several
+      // slots, so they skip the once-per-day exclusion.
+      if (!coversThisSlot && usedToday.has(exercise.id)) return false;
+
+      return true;
+    })
     .map((exercise) => {
       let rank = 0;
+      const coversThisSlot =
+        anchorDomains.get(exercise.id)?.has(card.domainPresented) ?? false;
+
+      if (coversThisSlot) {
+        // An anchor covering this slot leads the list, so a single Swap
+        // press lands on it — the intended way to put Qigong into its slots
+        // on a day it was not auto-scheduled. The slot's own context never
+        // matches a scheduled anchor, so without this it would rank last and
+        // the cycling Swap button could never reach it. Recency is not
+        // penalised here: anchors are meant to repeat, so a Qigong used on
+        // Tuesday must still lead its Wednesday slots.
+        rank += 10;
+      } else {
+        rank -= (recentUse[exercise.id] ?? 0) * 0.5;
+      }
+
       if (exercise.contexts.includes(card.contextPresented)) rank += 4;
       if (currentExercise && exercise.intensity === currentExercise.intensity)
         rank += 2;
-      rank -= (recentUse[exercise.id] ?? 0) * 0.5;
       // Half-strength skip down-rank: skipped exercises drift down the
       // alternatives list without disappearing from it.
       rank -= Math.min(recentSkips[exercise.id] ?? 0, 3) * 0.75;

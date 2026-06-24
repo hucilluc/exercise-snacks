@@ -632,3 +632,93 @@ test("mergeLibrary preserves guidance and keeps saved-only entries", () => {
   assert.ok(merged.some((e) => e.id === "llm_added_stretch"));
   assert.equal(merged.length, exerciseLibrary.length + 1);
 });
+
+// ── Anchor swap-in on a non-anchor day (e.g. Qigong on Wednesday) ─────────
+
+import { anchorDomainsForExercise } from "../src/recommendationEngine.js";
+
+test("an anchor is offered for each domain it covers on a non-anchor day", () => {
+  const days = makeAnchorWeek();
+  const wed = days["2026-06-17"]; // Wednesday — no auto Qigong
+
+  assert.equal(
+    wed.cards.filter((c) => c.exerciseId === "qigong").length,
+    0,
+    "Wednesday should not auto-schedule Qigong"
+  );
+
+  ["mobility_recovery", "balance_stability", "core_posture"].forEach(
+    (domain) => {
+      const card = wed.cards.find((c) => c.domainPresented === domain);
+      const options = swapAlternatives(
+        card,
+        wed.cards,
+        exerciseLibrary,
+        {},
+        {},
+        ANCHOR_SETTINGS
+      );
+      assert.ok(
+        options.some((e) => e.id === "qigong"),
+        `Qigong should be swap-eligible for the ${domain} slot`
+      );
+    }
+  );
+});
+
+test("an anchor stays offered for its other slots after filling one (multi-slot)", () => {
+  const days = makeAnchorWeek();
+  const wed = days["2026-06-17"];
+
+  // Simulate Qigong already swapped into the mobility slot.
+  const withQigong = {
+    ...wed,
+    cards: wed.cards.map((c) =>
+      c.domainPresented === "mobility_recovery"
+        ? { ...c, exerciseId: "qigong" }
+        : c
+    ),
+  };
+
+  const balanceCard = withQigong.cards.find(
+    (c) => c.domainPresented === "balance_stability"
+  );
+  const options = swapAlternatives(
+    balanceCard,
+    withQigong.cards,
+    exerciseLibrary,
+    {},
+    {},
+    ANCHOR_SETTINGS
+  );
+  assert.ok(
+    options.some((e) => e.id === "qigong"),
+    "Qigong should still be offered for the balance slot though already used today"
+  );
+});
+
+test("without anchor settings, an anchor is not offered outside its own domain", () => {
+  const days = makeWeek();
+  const balanceCard = days["2026-06-17"].cards.find(
+    (c) => c.domainPresented === "balance_stability"
+  );
+  const options = swapAlternatives(
+    balanceCard,
+    days["2026-06-17"].cards,
+    exerciseLibrary,
+    {}
+  );
+  assert.ok(
+    !options.some((e) => e.id === "qigong"),
+    "Qigong (mobility domain) must not appear for a balance slot without anchor config"
+  );
+});
+
+test("anchorDomainsForExercise reflects settings", () => {
+  const domains = anchorDomainsForExercise("qigong", ANCHOR_SETTINGS);
+  assert.ok(domains.has("mobility_recovery"));
+  assert.ok(domains.has("balance_stability"));
+  assert.ok(domains.has("core_posture"));
+  assert.equal(anchorDomainsForExercise("walk_1", ANCHOR_SETTINGS), null);
+  assert.equal(anchorDomainsForExercise("qigong", {}), null);
+});

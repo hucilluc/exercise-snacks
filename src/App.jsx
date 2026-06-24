@@ -3,9 +3,10 @@ import Header, { DEFAULT_CAPTION } from "./components/Header";
 import BodyBrightFigure from "./components/BodyBrightFigure";
 import ExerciseCard from "./components/ExerciseCard";
 import ExerciseDetailModal from "./components/ExerciseDetailModal";
-import { bodyBright, scoreDays, zoneColors } from "./data/bodyBright";
+import { bodyBright, domainLabels, scoreDays, zoneColors } from "./data/bodyBright";
 import { findExerciseInLibrary } from "./data/exerciseLibrary";
 import {
+  anchorDomainsForExercise,
   markNotSuitable,
   moveCards,
   recentUseCounts,
@@ -278,17 +279,34 @@ function App() {
     if (!card) return;
 
     const recentUse = recentUseCounts(profile.days, selectedDate);
-    const options = swapAlternatives(card, dayCards, library, recentUse);
+    const options = swapAlternatives(
+      card,
+      dayCards,
+      library,
+      recentUse,
+      {},
+      profile.settings
+    );
     if (options.length === 0) return;
 
     const replacement = options[0];
 
+    // The slot's domain (and Body Bright zone) is preserved across a swap.
+    // When an anchor (e.g. Qigong) is swapped into a slot it covers, name
+    // the card by the domain it credits, matching the auto-scheduled cards.
+    const coversAsAnchor = anchorDomainsForExercise(
+      replacement.id,
+      profile.settings
+    )?.has(card.domainPresented);
+
     updateSelectedDayCard(cardId, (current) => ({
       ...current,
       exerciseId: replacement.id,
-      exerciseNamePresented: replacement.name,
+      exerciseNamePresented: coversAsAnchor
+        ? `${replacement.name} — ${domainLabels[current.domainPresented]}`
+        : replacement.name,
       bodyBrightZonePresented:
-        bodyBright.domainToZone[replacement.domain] ??
+        bodyBright.domainToZone[current.domainPresented] ??
         current.bodyBrightZonePresented,
       variantPresented:
         replacement.variantLevels.find(
