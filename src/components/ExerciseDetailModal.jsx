@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { domainLabels } from "../data/bodyBright";
 import { contextLabel } from "../storage";
 
@@ -43,6 +44,52 @@ export default function ExerciseDetailModal({
   onMove,
   onClose,
 }) {
+  const backdropRef = useRef(null);
+
+  // Keep the overlay fitted to the visual viewport — the area actually
+  // visible above the iOS keyboard. Without this, opening the keyboard
+  // shrinks the visible area and pushes the whole card (and its close
+  // button) up off the top of the screen. Also locks the page behind so it
+  // can't scroll instead of the card.
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    const body = document.body;
+    const previousOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+
+    const backdrop = backdropRef.current;
+    const vv = window.visualViewport;
+
+    function sync() {
+      if (!backdrop || !vv) return;
+      backdrop.style.top = `${vv.offsetTop}px`;
+      backdrop.style.left = `${vv.offsetLeft}px`;
+      backdrop.style.width = `${vv.width}px`;
+      backdrop.style.height = `${vv.height}px`;
+    }
+
+    if (vv) {
+      sync();
+      vv.addEventListener("resize", sync);
+      vv.addEventListener("scroll", sync);
+    }
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      if (vv) {
+        vv.removeEventListener("resize", sync);
+        vv.removeEventListener("scroll", sync);
+      }
+      if (backdrop) {
+        backdrop.style.top = "";
+        backdrop.style.left = "";
+        backdrop.style.width = "";
+        backdrop.style.height = "";
+      }
+    };
+  }, [isOpen]);
+
   if (!isOpen || !card || !exercise) {
     return null;
   }
@@ -51,7 +98,7 @@ export default function ExerciseDetailModal({
   const contextIcon = contextIcons[card.contextPresented] || "•";
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" ref={backdropRef} onClick={onClose}>
       <div
         className="exercise-modal"
         style={{ "--card-accent": zoneColor || "#22d3ee" }}
