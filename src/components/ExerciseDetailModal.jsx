@@ -57,9 +57,16 @@ export default function ExerciseDetailModal({
         style={{ "--card-accent": zoneColor || "#22d3ee" }}
         onClick={(event) => event.stopPropagation()}
       >
-        <button className="modal-close" type="button" onClick={onClose}>
-          ×
-        </button>
+        <div className="modal-topbar">
+          <button
+            className="modal-close"
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
 
         <div className="modal-header">
           <span className="context-badge">
