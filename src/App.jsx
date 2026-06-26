@@ -8,9 +8,10 @@ import { findExerciseInLibrary } from "./data/exerciseLibrary";
 import {
   markNotSuitable,
   moveCards,
+  nextInSwapCycle,
+  recentSkipCounts,
   recentUseCounts,
   restoreSuitability,
-  swapAlternatives,
 } from "./recommendationEngine";
 import {
   applyImportedProfile,
@@ -278,10 +279,9 @@ function App() {
     if (!card) return;
 
     const recentUse = recentUseCounts(profile.days, selectedDate);
-    const options = swapAlternatives(card, dayCards, library, recentUse);
-    if (options.length === 0) return;
-
-    const replacement = options[0];
+    const recentSkips = recentSkipCounts(profile.days, selectedDate);
+    const replacement = nextInSwapCycle(card, library, recentUse, recentSkips);
+    if (!replacement) return;
 
     updateSelectedDayCard(cardId, (current) => ({
       ...current,

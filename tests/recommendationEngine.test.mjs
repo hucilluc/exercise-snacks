@@ -4,8 +4,9 @@ import {
   generateWeek,
   generatorVersion,
   moveCards,
+  nextInSwapCycle,
   recentUseCounts,
-  swapAlternatives,
+  swapCycle,
 } from "../src/recommendationEngine.js";
 import { exerciseLibrary } from "../src/data/exerciseLibrary.js";
 import { scoreDays } from "../src/data/bodyBright.js";
@@ -193,39 +194,96 @@ test("reserved slots claim their domain before generation", () => {
   assert.deepEqual(domains, [...SETTINGS.activeDomains].sort());
 });
 
-test("swapAlternatives preserves domain, excludes today's cards, ranks context first", () => {
+test("swapCycle covers the whole active domain, with the original as home", () => {
   const days = makeWeek();
-  const day = days["2026-06-15"];
-  const walkCard = cardioCard(day);
-  const usedToday = new Set(day.cards.map((c) => c.exerciseId));
+  const coreCard = days["2026-06-15"].cards.find(
+    (c) => c.domainPresented === "core_posture"
+  );
 
-  const options = swapAlternatives(walkCard, day.cards, exerciseLibrary, {});
-  assert.ok(options.length > 0);
-  options.forEach((exercise) => {
-    assert.equal(exercise.domain, "cardio_circulation");
-    assert.notEqual(exercise.id, walkCard.exerciseId);
-    assert.ok(!usedToday.has(exercise.id));
-  });
-  // The top alternative should fit the card's context (outdoors).
-  assert.ok(options[0].contexts.includes(walkCard.contextPresented));
+  const cycle = swapCycle(coreCard, exerciseLibrary, {}, {});
+  const coreActive = exerciseLibrary
+    .filter((e) => e.domain === "core_posture" && e.status === "active")
+    .map((e) => e.id)
+    .sort();
+
+  assert.deepEqual(cycle.map((e) => e.id).sort(), coreActive);
+  assert.equal(cycle[0].id, coreCard.originalExerciseId);
+  // The first alternative offered fits the slot context when any does.
+  const ctx = coreCard.contextPresented;
+  if (cycle.slice(1).some((e) => e.contexts.includes(ctx))) {
+    assert.ok(cycle[1].contexts.includes(ctx));
+  }
 });
 
-test("swapAlternatives biases against swapping straight back", () => {
+test("stepping through the cycle visits each exercise once and returns home", () => {
   const days = makeWeek();
-  const day = days["2026-06-15"];
+  const coreCard = days["2026-06-15"].cards.find(
+    (c) => c.domainPresented === "core_posture"
+  );
+
+  const cycle = swapCycle(coreCard, exerciseLibrary, {}, {});
+  let card = coreCard;
+  const visited = [];
+  for (let i = 0; i < cycle.length; i++) {
+    const next = nextInSwapCycle(card, exerciseLibrary, {}, {});
+    visited.push(next.id);
+    card = { ...coreCard, exerciseId: next.id };
+  }
+
+  assert.equal(new Set(visited).size, cycle.length); // each exactly once
+  assert.equal(visited[visited.length - 1], coreCard.originalExerciseId); // home last
+});
+
+test("cycle ordering is anchored to the original, not the current exercise", () => {
+  const base = {
+    cardId: "x",
+    domainPresented: "core_posture",
+    contextPresented: "getting_up",
+    originalExerciseId: "pelvic_tilts",
+    exerciseId: "pelvic_tilts",
+  };
+  // Same card after being swapped to a different-intensity exercise.
+  const swapped = { ...base, exerciseId: "bird_dog" };
+
+  const altsFrom = (card) =>
+    swapCycle(card, exerciseLibrary, {}, {})
+      .filter((e) => e.id !== "pelvic_tilts")
+      .map((e) => e.id);
+
+  assert.deepEqual(altsFrom(base), altsFrom(swapped));
+});
+
+test("not-suitable exercises are excluded from the cycle", () => {
+  const days = makeWeek();
+  const coreCard = days["2026-06-15"].cards.find(
+    (c) => c.domainPresented === "core_posture"
+  );
+  const flagged = exerciseLibrary.map((e) =>
+    e.id === "bird_dog" ? { ...e, status: "needs_review" } : e
+  );
+
+  const cycle = swapCycle(coreCard, flagged, {}, {});
+  assert.ok(!cycle.some((e) => e.id === "bird_dog"));
+});
+
+test("recent use pushes an exercise later in the cycle (but never removes it)", () => {
   const card = {
-    ...cardioCard(day),
-    exerciseId: "gardening",
-    swap: {
-      wasSwapped: true,
-      fromExerciseId: "walk_1",
-      toExerciseId: "gardening",
-    },
+    cardId: "x",
+    domainPresented: "core_posture",
+    contextPresented: "daytime",
+    originalExerciseId: "pelvic_tilts",
+    exerciseId: "pelvic_tilts",
   };
 
-  const options = swapAlternatives(card, day.cards, exerciseLibrary, {});
-  assert.ok(options.length > 1);
-  assert.notEqual(options[0].id, "walk_1");
+  const altIndex = (recentUse) =>
+    swapCycle(card, exerciseLibrary, recentUse, {})
+      .slice(1)
+      .findIndex((e) => e.id === "posture_wall");
+
+  const before = altIndex({});
+  const after = altIndex({ posture_wall: 10 });
+  assert.ok(after > before, `expected later position, ${after} <= ${before}`);
+  assert.ok(after >= 0, "still present in the cycle");
 });
 
 test("recentUseCounts only looks back before the given date", () => {
@@ -539,8 +597,8 @@ test("generation and swap exclude needs_review exercises", () => {
   const rehabCard = days[WEEK[0]].cards.find(
     (c) => c.domainPresented === "rehab"
   );
-  const options = swapAlternatives(rehabCard, days[WEEK[0]].cards, flagged, {});
-  assert.ok(!options.some((e) => e.id === "current_rehab"));
+  const cycle = swapCycle(rehabCard, flagged, {}, {});
+  assert.ok(!cycle.some((e) => e.id === "current_rehab"));
 });
 
 test("anchor day degrades gracefully when the anchor is flagged", () => {

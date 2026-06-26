@@ -442,49 +442,60 @@ export function generateWeek({
 
 // ── Swap ─────────────────────────────────────────────────────────────────
 
-// Ranked same-domain alternatives for a card (spec §8). One mechanism for
-// every slot: walks, snacks and (in Phase 2) anchors alike. The domain is
-// preserved so Body Bright scoring keeps one credit per domain per day.
-export function swapAlternatives(
-  card,
-  dayCards,
-  library,
-  recentUse = {},
-  recentSkips = {}
-) {
-  const usedToday = new Set(
-    dayCards
-      .filter((other) => other.cardId !== card.cardId)
-      .map((other) => other.exerciseId)
-  );
+// The full swap cycle for a card (spec §8): every active exercise in the
+// slot's domain, in a stable order, with the originally-generated exercise
+// as the home position. Pressing Swap steps to the next entry and loops
+// back to the original after the whole domain has been seen.
+//
+// "Equivalent" is anchored to the *original* exercise (card.originalExerciseId)
+// rather than whatever is currently shown, so the ordering does not shift as
+// you cycle — that is what lets the loop close cleanly and return home.
+//
+// Ordering (descending), all stable across presses within a day:
+//   + slot-context fit            (offer slot-appropriate options first)
+//   + intensity equal to original (the "show me an equivalent" signal)
+//   - recent use / recent skips   (so departing far from the recommendation
+//                                   takes more presses — a useful signal)
+// No "don't swap straight back" term: a true cycle never bounces, it advances.
+export function swapCycle(card, library, recentUse = {}, recentSkips = {}) {
+  const originalId = card.originalExerciseId ?? card.exerciseId;
+  const anchorIntensity =
+    library.find((e) => e.id === originalId)?.intensity ??
+    library.find((e) => e.id === card.exerciseId)?.intensity;
 
-  const currentExercise = library.find((e) => e.id === card.exerciseId);
+  function rank(exercise) {
+    let score = 0;
+    if (exercise.contexts.includes(card.contextPresented)) score += 4;
+    if (anchorIntensity && exercise.intensity === anchorIntensity) score += 2;
+    score -= (recentUse[exercise.id] ?? 0) * 0.5;
+    score -= Math.min(recentSkips[exercise.id] ?? 0, 3) * 0.75;
+    return score;
+  }
 
-  return library
+  const alternatives = library
     .filter(
       (exercise) =>
         exercise.status === "active" &&
         exercise.domain === card.domainPresented &&
-        exercise.id !== card.exerciseId &&
-        !usedToday.has(exercise.id)
+        exercise.id !== originalId
     )
-    .map((exercise) => {
-      let rank = 0;
-      if (exercise.contexts.includes(card.contextPresented)) rank += 4;
-      if (currentExercise && exercise.intensity === currentExercise.intensity)
-        rank += 2;
-      rank -= (recentUse[exercise.id] ?? 0) * 0.5;
-      // Half-strength skip down-rank: skipped exercises drift down the
-      // alternatives list without disappearing from it.
-      rank -= Math.min(recentSkips[exercise.id] ?? 0, 3) * 0.75;
-      // Bias against immediately swapping back to what was just swapped away.
-      if (card.swap?.fromExerciseId === exercise.id) rank -= 3;
-      return { exercise, rank };
-    })
-    .sort(
-      (a, b) => b.rank - a.rank || a.exercise.id.localeCompare(b.exercise.id)
-    )
-    .map((entry) => entry.exercise);
+    .sort((a, b) => rank(b) - rank(a) || a.id.localeCompare(b.id));
+
+  const original = library.find(
+    (exercise) => exercise.id === originalId && exercise.status === "active"
+  );
+
+  return original ? [original, ...alternatives] : alternatives;
+}
+
+// The next exercise to show when Swap is pressed: the entry after the
+// current one in the cycle, wrapping back to the home position.
+export function nextInSwapCycle(card, library, recentUse = {}, recentSkips = {}) {
+  const cycle = swapCycle(card, library, recentUse, recentSkips);
+  if (cycle.length <= 1) return null;
+  const currentIndex = cycle.findIndex((e) => e.id === card.exerciseId);
+  const next = cycle[(currentIndex + 1) % cycle.length];
+  return next && next.id !== card.exerciseId ? next : null;
 }
 
 // ── Cross-day moves ──────────────────────────────────────────────────────
