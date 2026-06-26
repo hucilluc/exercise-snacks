@@ -539,6 +539,10 @@ h2 {
   width: min(720px, 100%);
   max-height: min(820px, calc(100vh - 48px));
   overflow-y: auto;
+  /* Vertical scrolling only — stops diagonal finger drags from panning the
+     card sideways on touch screens. */
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   border: 1px solid rgba(148, 163, 184, 0.28);
   border-top: 5px solid var(--card-accent, #22d3ee);
   border-radius: 28px;
@@ -580,7 +584,6 @@ h2 {
   display: flex;
   justify-content: space-between;
   gap: 16px;
-  padding-right: 48px;
   margin-bottom: 18px;
 }
 
@@ -592,6 +595,10 @@ h2 {
   border-radius: 26px;
   background: rgba(34, 211, 238, 0.06);
   border: 1px solid rgba(34, 211, 238, 0.18);
+  /* Clip the enlarged (scaled) illustration to its box so it can't overflow
+     the card horizontally. The figure is centred, so only transparent
+     margin is trimmed. */
+  overflow: hidden;
 }
 
 .modal-image img {
