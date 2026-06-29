@@ -473,12 +473,15 @@ test("moving an anchor card moves the whole activity as a unit", () => {
 test("moves are deterministic", () => {
   const days = makeAnchorWeek();
   const walkCard = cardioCard(days["2026-06-17"]);
+  // Ignore the wall-clock swap timestamp; the selection is what must be
+  // deterministic.
+  const stripTimes = (d) =>
+    JSON.parse(JSON.stringify(d), (key, value) =>
+      key === "swappedAt" ? null : value
+    );
   const a = moveCards(days, "2026-06-17", walkCard.cardId, "2026-06-20", exerciseLibrary, ANCHOR_SETTINGS);
   const b = moveCards(days, "2026-06-17", walkCard.cardId, "2026-06-20", exerciseLibrary, ANCHOR_SETTINGS);
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(a)),
-    JSON.parse(JSON.stringify(b))
-  );
+  assert.deepEqual(stripTimes(a), stripTimes(b));
 });
 
 // ── Phase 3: suitability ─────────────────────────────────────────────────
@@ -689,4 +692,29 @@ test("mergeLibrary preserves guidance and keeps saved-only entries", () => {
   // Saved-only entry survives
   assert.ok(merged.some((e) => e.id === "llm_added_stretch"));
   assert.equal(merged.length, exerciseLibrary.length + 1);
+});
+
+// ── Robustness: malformed library must never crash the app ────────────────
+
+import { normalizeLibrary } from "../src/data/exerciseLibrary.js";
+
+test("normalizeLibrary fills missing array fields", () => {
+  const broken = [{ id: "x", name: "X", domain: "rehab", intensity: "gentle" }];
+  const [fixed] = normalizeLibrary(broken);
+  ["doseLevels", "variantLevels", "contexts", "functionalTags", "careTags"].forEach(
+    (f) => assert.ok(Array.isArray(fixed[f]), `${f} should be an array`)
+  );
+});
+
+test("generation tolerates an exercise missing doseLevels (no crash)", () => {
+  const broken = exerciseLibrary.map((e) =>
+    e.id === "current_rehab" ? { ...e, doseLevels: undefined } : e
+  );
+  let days;
+  assert.doesNotThrow(() => {
+    days = generateWeek({ weekDates: WEEK, library: broken, settings: SETTINGS });
+  });
+  const rehab = days[WEEK[0]].cards.find((c) => c.domainPresented === "rehab");
+  assert.ok(rehab, "rehab card still generated");
+  assert.equal(rehab.dosePresented, null); // graceful empty dose
 });

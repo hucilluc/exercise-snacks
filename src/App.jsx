@@ -291,11 +291,11 @@ function App() {
         bodyBright.domainToZone[replacement.domain] ??
         current.bodyBrightZonePresented,
       variantPresented:
-        replacement.variantLevels.find(
+        (replacement.variantLevels ?? []).find(
           (variant) => variant.level === replacement.currentVariantLevel
         ) ?? null,
       dosePresented:
-        replacement.doseLevels.find(
+        (replacement.doseLevels ?? []).find(
           (dose) => dose.level === replacement.currentDoseLevel
         ) ?? null,
       state: "not_started",

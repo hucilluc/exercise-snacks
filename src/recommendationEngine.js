@@ -87,11 +87,11 @@ export function buildCard(date, slotIndex, exercise, contextKey, displayName) {
     exerciseNamePresented: displayName ?? exercise.name,
     contextPresented: contextKey,
     variantPresented:
-      exercise.variantLevels.find(
+      (exercise.variantLevels ?? []).find(
         (variant) => variant.level === exercise.currentVariantLevel
       ) ?? null,
     dosePresented:
-      exercise.doseLevels.find(
+      (exercise.doseLevels ?? []).find(
         (dose) => dose.level === exercise.currentDoseLevel
       ) ?? null,
     state: "not_started",

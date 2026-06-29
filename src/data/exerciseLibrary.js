@@ -695,15 +695,38 @@ export function mergeLibrary(codeLibrary, savedLibrary = []) {
 
 export function currentDoseText(exercise) {
   return (
-    exercise.doseLevels.find((dose) => dose.level === exercise.currentDoseLevel)
-      ?.displayText ?? ""
+    (exercise.doseLevels ?? []).find(
+      (dose) => dose.level === exercise.currentDoseLevel
+    )?.displayText ?? ""
   );
 }
 
 export function currentVariant(exercise) {
   return (
-    exercise.variantLevels.find(
+    (exercise.variantLevels ?? []).find(
       (variant) => variant.level === exercise.currentVariantLevel
     ) ?? null
   );
+}
+
+// The per-exercise array fields the app iterates over. A malformed library
+// (e.g. an LLM review that drops a field) must never be able to crash the
+// app, so every exercise is normalised to guarantee these are arrays.
+const EXERCISE_ARRAY_FIELDS = [
+  "doseLevels",
+  "variantLevels",
+  "contexts",
+  "functionalTags",
+  "careTags",
+];
+
+export function normalizeLibrary(library) {
+  if (!Array.isArray(library)) return [];
+  return library.map((exercise) => {
+    const safe = { ...exercise };
+    EXERCISE_ARRAY_FIELDS.forEach((field) => {
+      if (!Array.isArray(safe[field])) safe[field] = [];
+    });
+    return safe;
+  });
 }

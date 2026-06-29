@@ -185,3 +185,16 @@ test("non-object input is rejected outright", () => {
   assert.ok(validateProfile([1, 2], current).errors.length > 0);
   assert.ok(validateProfile("text", current).errors.length > 0);
 });
+
+test("library entry missing a required array field is rejected", () => {
+  const current = freshProfile();
+  ["doseLevels", "variantLevels", "contexts"].forEach((field) => {
+    const broken = clone(current);
+    delete broken.exerciseLibrary[0][field];
+    const result = validateProfile(broken, current);
+    assert.ok(
+      result.errors.some((e) => e.includes(field) && e.includes(broken.exerciseLibrary[0].id)),
+      `expected error naming ${field}`
+    );
+  });
+});

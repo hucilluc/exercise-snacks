@@ -20,6 +20,7 @@ import {
   exerciseLibrary,
   libraryVersion,
   mergeLibrary,
+  normalizeLibrary,
 } from "./data/exerciseLibrary.js";
 import { generateWeek, generatorVersion } from "./recommendationEngine.js";
 
@@ -115,6 +116,7 @@ function defaultLlmReviewGuide() {
       "For new or recently changed exercises, allow larger downward adjustment if the starting dose appears too ambitious.",
       "For established exercises, prefer cautious changes.",
       "Walk 1, Walk 2, and Walk 3 are labelled walking slots that may be differentiated over time (for example recovery, normal, progression) based on observed outcomes.",
+      "Never remove an exercise's doseLevels, currentDoseLevel, variantLevels or currentVariantLevel fields; the app needs them. If a dose is set externally (for example a physiotherapist sets the Rehab dose), keep a placeholder doseLevels entry such as 'Current physio dose' rather than deleting the field.",
       "Do not increase dose and variant at the same time unless clearly justified.",
       "Flag issues that should be discussed with a physiotherapist or clinician.",
       "Do not rewrite locked historical records.",
@@ -410,6 +412,13 @@ export function loadProfile(currentWeekDates) {
       exerciseLibrary: mergeLibrary(exerciseLibrary, profile.exerciseLibrary),
     };
   }
+
+  // Guarantee every exercise has the array fields the app iterates over, so
+  // an imported profile can never crash generation or rendering.
+  profile = {
+    ...profile,
+    exerciseLibrary: normalizeLibrary(profile.exerciseLibrary),
+  };
 
   return rolloverProfile(profile, currentWeekDates);
 }

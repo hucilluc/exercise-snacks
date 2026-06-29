@@ -45,6 +45,11 @@ const ALLOWED_STATES = new Set([
 
 const KNOWN_DOMAINS = new Set(Object.keys(bodyBright.domainToZone));
 
+// Array fields every exercise needs for the app to build its cards and swap
+// cycle. A review that drops one of these would otherwise import cleanly and
+// then break the app, so they are validated at import time.
+const REQUIRED_EXERCISE_ARRAYS = ["doseLevels", "variantLevels", "contexts"];
+
 // Order-insensitive deep equality for plain JSON values.
 function deepEqual(a, b) {
   if (a === b) return true;
@@ -129,6 +134,16 @@ export function validateProfile(parsed, currentProfile) {
             `Library entry "${exercise.id}" has unknown domain "${exercise.domain}".`
           );
         }
+        // The app builds cards and the swap cycle from these arrays, so a
+        // missing one would break the app. Catch it here rather than letting
+        // it fail later (e.g. an LLM review that drops doseLevels).
+        REQUIRED_EXERCISE_ARRAYS.forEach((field) => {
+          if (!Array.isArray(exercise[field])) {
+            errors.push(
+              `Exercise "${exercise.id}" is missing its ${field} (it must be a list). A review may have removed it.`
+            );
+          }
+        });
       });
     }
   }

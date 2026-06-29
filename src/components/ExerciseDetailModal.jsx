@@ -204,7 +204,7 @@ export default function ExerciseDetailModal({
         <div className="modal-section">
           <h3>Tags</h3>
           <div className="tag-row">
-            {exercise.functionalTags.map((tag) => (
+            {(exercise.functionalTags ?? []).map((tag) => (
               <span key={tag}>{formatTag(tag)}</span>
             ))}
           </div>
